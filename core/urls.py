@@ -4,9 +4,11 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from users.views import UserViewSet, UserProfileView
+from loans.views import MaterialLoanViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
+router.register(r'material-loans', MaterialLoanViewSet, basename='material-loan')
 
 urlpatterns = [
     # Panel de Administración de Django

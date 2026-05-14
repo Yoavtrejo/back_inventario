@@ -1,3 +1,29 @@
+"""
+Django admin registration for loans.
+"""
+
+from __future__ import annotations
+
 from django.contrib import admin
 
-# Register your models here.
+from .models import MaterialLoan
+
+
+@admin.register(MaterialLoan)
+class MaterialLoanAdmin(admin.ModelAdmin):
+    """Admin list/detail for material loans."""
+
+    list_display = (
+        "id",
+        "material_name",
+        "quantity",
+        "loan_period_days",
+        "loan_date",
+        "return_date",
+        "requested_by",
+        "approved_by",
+        "created_at",
+    )
+    list_select_related = ("requested_by", "approved_by")
+    search_fields = ("material_name", "requested_by__username", "approved_by__username")
+    readonly_fields = ("created_at", "updated_at")
