@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from materials.models import Material
-from .models import MaterialLoan
+from .models import MaterialLoan, ConditionReport
 
 User = get_user_model()
 
@@ -40,10 +40,12 @@ class MaterialLoanSerializer(serializers.ModelSerializer):
             "return_date",
             "requested_by",
             "approved_by",
+            "has_condition_report",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "requested_by", "approved_by", "created_at", "updated_at")
+        read_only_fields = ("id", "requested_by", "approved_by", "has_condition_report", "created_at", "updated_at")
+
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -103,3 +105,32 @@ class MaterialLoanSerializer(serializers.ModelSerializer):
                 {"approved_by": "Approved loans cannot be modified by the requester."},
             )
         return super().update(instance, validated_data)
+
+
+class ConditionReportSerializer(serializers.ModelSerializer):
+    """Serializer for the material condition report."""
+
+    user = LoanActorUserSerializer(read_only=True)
+
+    class Meta:
+        model = ConditionReport
+        fields = (
+            "id",
+            "loan",
+            "user",
+            "description",
+            "photo",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "loan", "user", "created_at", "updated_at")
+
+    def validate_photo(self, value):
+        # Validate that the file is an image and is less than 5MB
+        if value:
+            # Check file size (5MB max)
+            max_size = 5 * 1024 * 1024
+            if value.size > max_size:
+                raise serializers.ValidationError("La imagen no debe pesar más de 5MB.")
+        return value
+
