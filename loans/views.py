@@ -34,11 +34,24 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> QuerySet[MaterialLoan]:
+        if getattr(self, "swagger_fake_view", False):
+            return MaterialLoan.objects.none()
+            
         base_queryset = MaterialLoan.objects.select_related("requested_by", "approved_by", "material").all()
         request_user = self.request.user
+        
+        if request_user.is_anonymous:
+            return MaterialLoan.objects.none()
+            
         if request_user.is_superuser:
             return base_queryset
         return base_queryset.filter(requested_by=request_user)
+
+    def get_serializer_class(self) -> Any:
+        if self.action == 'condition_report':
+            return ConditionReportSerializer
+        return super().get_serializer_class()
+
 
     def perform_create(self, serializer: MaterialLoanSerializer) -> None:
         with transaction.atomic():
