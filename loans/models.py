@@ -16,7 +16,11 @@ class MaterialLoan(models.Model):
     - Only a superuser may set ``approved_by`` (authorization).
     """
 
-    material_name = models.CharField(max_length=255)
+    material = models.ForeignKey(
+        'materials.Material',
+        on_delete=models.PROTECT,
+        related_name="loans",
+    )
     quantity = models.PositiveIntegerField()
     loan_period_days = models.PositiveIntegerField()
     loan_date = models.DateField()
@@ -40,4 +44,4 @@ class MaterialLoan(models.Model):
         ordering = ("-loan_date", "-id")
 
     def __str__(self) -> str:
-        return f"{self.material_name} ({self.quantity}) — {self.loan_date}"
+        return f"{self.material.name if self.material else 'Unnamed'} ({self.quantity}) — {self.loan_date}"

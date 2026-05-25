@@ -12,6 +12,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from loans.models import MaterialLoan
+from materials.models import Material
 
 User = get_user_model()
 
@@ -35,14 +36,25 @@ class MaterialLoanApiTests(APITestCase):
             email="admin@example.com",
             password="strong-pass-789",
         )
+        # Create default material
+        self.default_material = Material.objects.create(
+            name="Beaker 250ml",
+            quantity=10,
+            min_stock=1,
+            max_stock=100,
+            status="Disponible"
+        )
 
     def test_authenticated_user_can_create_loan_and_payload_is_wrapped(self) -> None:
         self.client.force_authenticate(user=self.regular_user)
         loan_date = dt.date.today()
+        # Verify initial quantity is 10
+        self.assertEqual(self.default_material.quantity, 10)
+        
         response = self.client.post(
             reverse("material-loan-list"),
             data={
-                "material_name": "Beaker 250ml",
+                "material": self.default_material.id,
                 "quantity": 2,
                 "loan_period_days": 7,
                 "loan_date": loan_date.isoformat(),
@@ -52,12 +64,17 @@ class MaterialLoanApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(response.data["success"])
         loan_payload = response.data["data"]
-        self.assertEqual(loan_payload["material_name"], "Beaker 250ml")
+        self.assertEqual(loan_payload["material"], self.default_material.id)
         self.assertEqual(loan_payload["requested_by"]["id"], self.regular_user.id)
+        
+        # Verify quantity decreased to 8
+        self.default_material.refresh_from_db()
+        self.assertEqual(self.default_material.quantity, 8)
 
     def test_superuser_can_approve_loan_via_approved_by_user_id(self) -> None:
+        # Note: creation via models.objects.create bypasses views/API save, so stock is not automatically decremented
         loan = MaterialLoan.objects.create(
-            material_name="Tripod",
+            material=self.default_material,
             quantity=1,
             loan_period_days=3,
             loan_date=dt.date.today(),
@@ -75,7 +92,7 @@ class MaterialLoanApiTests(APITestCase):
 
     def test_requester_cannot_modify_approved_loan(self) -> None:
         loan = MaterialLoan.objects.create(
-            material_name="Burner",
+            material=self.default_material,
             quantity=1,
             loan_period_days=5,
             loan_date=dt.date.today(),
@@ -94,7 +111,7 @@ class MaterialLoanApiTests(APITestCase):
 
     def test_requester_cannot_delete_approved_loan(self) -> None:
         loan = MaterialLoan.objects.create(
-            material_name="Lens",
+            material=self.default_material,
             quantity=1,
             loan_period_days=10,
             loan_date=dt.date.today(),
@@ -108,8 +125,8 @@ class MaterialLoanApiTests(APITestCase):
 
     def test_non_superuser_cannot_access_other_users_loan(self) -> None:
         loan = MaterialLoan.objects.create(
-            material_name="Microscope slide",
-            quantity=10,
+            material=self.default_material,
+            quantity=1,
             loan_period_days=2,
             loan_date=dt.date.today(),
             requested_by=self.other_user,
@@ -124,7 +141,7 @@ class MaterialLoanApiTests(APITestCase):
         response = self.client.post(
             reverse("material-loan-list"),
             data={
-                "material_name": "Pipette",
+                "material": self.default_material.id,
                 "quantity": 1,
                 "loan_period_days": 1,
                 "loan_date": loan_date.isoformat(),
@@ -134,3 +151,51 @@ class MaterialLoanApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
+
+    def test_cannot_request_loan_exceeding_stock(self) -> None:
+        self.client.force_authenticate(user=self.regular_user)
+        loan_date = dt.date.today()
+        response = self.client.post(
+            reverse("material-loan-list"),
+            data={
+                "material": self.default_material.id,
+                "quantity": 11,  # Stock is only 10
+                "loan_period_days": 7,
+                "loan_date": loan_date.isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["success"])
+
+    def test_returning_material_increases_stock(self) -> None:
+        self.client.force_authenticate(user=self.regular_user)
+        loan_date = dt.date.today()
+        
+        # Create loan via API to properly deduct stock (10 -> 8)
+        response = self.client.post(
+            reverse("material-loan-list"),
+            data={
+                "material": self.default_material.id,
+                "quantity": 2,
+                "loan_period_days": 7,
+                "loan_date": loan_date.isoformat(),
+            },
+            format="json",
+        )
+        loan_id = response.data["data"]["id"]
+        self.default_material.refresh_from_db()
+        self.assertEqual(self.default_material.quantity, 8)
+
+        # Superuser returns it (sets return_date)
+        self.client.force_authenticate(user=self.superuser)
+        patch_response = self.client.patch(
+            reverse("material-loan-detail", kwargs={"pk": loan_id}),
+            data={"return_date": (loan_date + dt.timedelta(days=3)).isoformat()},
+            format="json",
+        )
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+        
+        # Verify stock increases back to 10
+        self.default_material.refresh_from_db()
+        self.assertEqual(self.default_material.quantity, 10)

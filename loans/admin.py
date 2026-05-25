@@ -15,7 +15,7 @@ class MaterialLoanAdmin(admin.ModelAdmin):
 
     list_display = (
         "id",
-        "material_name",
+        "material",
         "quantity",
         "loan_period_days",
         "loan_date",
@@ -24,6 +24,6 @@ class MaterialLoanAdmin(admin.ModelAdmin):
         "approved_by",
         "created_at",
     )
-    list_select_related = ("requested_by", "approved_by")
-    search_fields = ("material_name", "requested_by__username", "approved_by__username")
+    list_select_related = ("requested_by", "approved_by", "material")
+    search_fields = ("material__name", "requested_by__username", "approved_by__username")
     readonly_fields = ("created_at", "updated_at")

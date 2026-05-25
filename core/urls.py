@@ -5,10 +5,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from users.views import UserViewSet, UserProfileView
 from loans.views import MaterialLoanViewSet
+from materials.views import MaterialViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'material-loans', MaterialLoanViewSet, basename='material-loan')
+router.register(r'materials', MaterialViewSet, basename='material')
 
 urlpatterns = [
     # Panel de Administración de Django

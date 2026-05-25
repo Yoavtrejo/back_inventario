@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'history',
     'inventory',
     'loans',
+    'materials',
 ]
 
 MIDDLEWARE = [
