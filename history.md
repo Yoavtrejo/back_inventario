@@ -1,0 +1,2 @@
+## Funcionamiento de history
+#### Basicmanete sera un hisotrial de los prestamos donde se guardaran los detalles del prestamo, ver quien lo solicito, quien lo aprobo, la fecha de aprobacion, el tiempo de duracion de prestamo en (fecha), y los materiales que se solicitaron en el prestamo sera su unica funcion

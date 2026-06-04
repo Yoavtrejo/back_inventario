@@ -9,6 +9,9 @@ from users.views import UserViewSet, UserProfileView
 from loans.views import MaterialLoanViewSet
 from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet
+from history.views import LoanHistoryViewSet
+from academic.views import (TermViewSet, SubjectViewSet, ClassGroupViewSet, 
+                            ActivityViewSet, WorkTeamViewSet, SubmissionViewSet)
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -16,6 +19,13 @@ router.register(r'material-loans', MaterialLoanViewSet, basename='material-loan'
 router.register(r'materials', MaterialViewSet, basename='material')
 router.register(r'islas', IslaViewSet, basename='isla')
 router.register(r'reservaciones', ReservacionViewSet, basename='reservacion')
+router.register(r'history', LoanHistoryViewSet, basename='history')
+router.register(r'academic/terms', TermViewSet, basename='term')
+router.register(r'academic/subjects', SubjectViewSet, basename='subject')
+router.register(r'academic/classgroups', ClassGroupViewSet, basename='classgroup')
+router.register(r'academic/activities', ActivityViewSet, basename='activity')
+router.register(r'academic/workteams', WorkTeamViewSet, basename='workteam')
+router.register(r'academic/submissions', SubmissionViewSet, basename='submission')
 
 urlpatterns = [
     # Panel de Administración de Django
