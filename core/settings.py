@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'inventory',
     'loans',
     'materials',
+    'isla_control',
 ]
 
 MIDDLEWARE = [
