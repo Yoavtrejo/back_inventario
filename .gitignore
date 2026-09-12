@@ -1,2 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables
 .env
-.cursorrules
+
+# SQLite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+
