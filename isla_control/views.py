@@ -9,8 +9,8 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from core.json_api_mixin import WrappedStandardApiMixin
 
-from .models import Isla, Reservacion
-from .serializers import IslaSerializer, ReservacionSerializer
+from .models import Isla, Reservacion, HorarioBloqueado
+from .serializers import IslaSerializer, ReservacionSerializer, HorarioBloqueadoSerializer
 
 
 class IsSuperUserOrReadOnly(permissions.BasePermission):
@@ -140,3 +140,60 @@ class ReservacionViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK
         )
+
+    @action(detail=True, methods=['post'], url_path='cancelar')
+    def cancelar(self, request, pk=None):
+        """Cancela una reservación activa."""
+        reservacion = self.get_object()
+
+        if reservacion.cancelada:
+            return Response(
+                {"detail":"Esta reservación ya está cancelada."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if reservacion.completada:
+            return Response(
+                {"detail":"No se puede cancelar una reservación completada."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not request.user.is_superuser and reservacion.alumno != request.user:
+            raise PermissionDenied("No tienes permiso para cancelar está reservación.")
+
+        with transaction.atomic():
+            reservacion.cancelada = True
+            reservacion.save()
+
+        serializer = self.get_serializer(reservacion)
+        return Response(serializer.data)
+
+class HorarioBloqueadoViewSet(viewsets.ModelViewSet):
+    """
+    Gestión de horarios bloqueados.
+    - Lectura: cualquier usuario autenticado
+    - Escritura: solo superusuarios
+    """
+
+    serializer_class = HorarioBloqueadoSerializer
+    permission_classes = (permissions.IsAuthenticated,) 
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_views', False):
+            return HorarioBloqueado.objects.none()
+        return HorarioBloqueado.objects.select_related('isla', 'created_by').all()
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_superuser:
+            raise PermissionDenied('Solo los administradores pueden bloquear horarios.')
+        serializer.save(created_by=self.request.user)
+    
+    def perform_update(self, serializer):
+        if not self.request.user.is_superuser:
+            raise PermissionDenied('Solo los administradores pueden modificar bloqueos.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_superuser:
+            raise PermissionDenied('Solo los administradores pueden eliminar bloqueos.')
+        instance.delete()

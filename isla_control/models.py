@@ -81,6 +81,23 @@ class Reservacion(models.Model):
             raise ValidationError("La duración de la reservación no puede ser mayor a 4 horas.")
         if self.duracion_horas < 1:
             raise ValidationError("La duración de la reservación debe ser de al menos 1 hora.")
+        
+        from datetime import time as time_type
+        hora_fin_reserva = time_type(self.hora_inicio.hour + self.duracion_horas, 0)
+
+        bloqueos = HorarioBloqueado.objects.filter(
+            fecha=self.fecha_reserva,
+            hora_inicio__lt= hora_fin_reserva,
+            hora_fin__gt=self.hora_inicio,
+        ).filter(
+            models.Q(isla=self.isla) | models.Q(isla__isnull=True)
+        )
+
+        if bloqueos.exists():
+            bloqueo = bloqueos.first()
+            raise ValidationError(
+                f"Este horario está bloqueado: {bloqueo.motivo}"
+            )
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -116,3 +133,40 @@ class Reservacion(models.Model):
 
     def __str__(self):
         return f"Reserva Isla {self.isla.numero_isla} - {self.alumno.username} ({self.fecha_reserva})"
+
+class HorarioBloqueado(models.Model):
+    """
+    Bloquea un horario específico en el laboratorio.
+    Si isla es null, el bloqueo aplica a todas las islas.
+    """
+    isla = models.ForeignKey(
+        Isla,
+        on_delete=models.CASCADE,
+        related_name='horarios_bloqueados',
+        null=True,
+        blank=True,
+        help_text='Si es null, aplica a todas las islas'
+    )
+    fecha = models.DateField()
+    hora_inicio = models.TimeField()
+    hora_fin = models.TimeField()
+    motivo = models.CharField(max_length=255, blank=True, default='Mantenimiento')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='horarios_bloqueados_creados'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta: 
+        ordering = ['fecha', 'hora_inicio']
+
+    def clean(self):
+        super().clean()
+        if self.hora_fin <= self.hora_inicio:
+            raise ValidationError('La horade fin debe ser mayor a la hora de inicio.')
+
+    def __str__(self):
+        isla_str = f'Isla {self.isla.numero_isla}' if self.isla else 'Todas las islas'
+        return f'{isla_str} - {self.fecha} {self.hora_inicio} - {self.hora_fin}'

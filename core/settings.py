@@ -50,6 +50,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -70,8 +71,8 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'API SICAT',
-    'DESCRIPTION': 'Gestión de usuarios y catastro',
+    'TITLE': 'API SIDERED',
+    'DESCRIPTION': 'Gestión de laborario de redes',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     # Esto es clave para que Swagger muestre el botón de "Authorize" para el Token JWT
@@ -118,7 +119,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'bdinventario_redes',
         'USER': 'postgres',
-        'PASSWORD': 'hola12345#',
+        'PASSWORD': 'hola12345',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -147,9 +148,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-mx'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Mexico_City'
 
 USE_I18N = True
 
@@ -164,3 +165,34 @@ STATIC_URL = 'static/'
 # Media files (Uploaded by users)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.100.8:3000",
+    "http://192.168.100.13:3000"
+]
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'marimarbustos07@gmail.com'
+EMAIL_HOST_PASSWORD = 'tsab eems tucm bnbv'
+DEFAULT_FROM_EMAIL = 'SIDERED <marimarbustos07@gmail.com>'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],  # ← Cambia [] por esto
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]

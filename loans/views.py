@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.db.models import QuerySet
-from rest_framework import permissions, viewsets
+from rest_framework import generics, permissions, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -18,7 +18,7 @@ from core.json_api_mixin import WrappedStandardApiMixin
 from rest_framework.decorators import action
 from .models import MaterialLoan, ConditionReport
 from .serializers import MaterialLoanSerializer, ConditionReportSerializer
-
+from rest_framework import permissions
 
 
 class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
@@ -63,30 +63,18 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer: MaterialLoanSerializer) -> None:
         with transaction.atomic():
-            old_instance = self.get_object()
-            old_quantity = old_instance.quantity
-            old_returned = old_instance.return_date is not None
+            # serializer.instance tiene el objeto ANTES de guardar
+            instance = serializer.instance
+            old_quantity = instance.quantity if instance else 0
 
-            instance = serializer.save()
+            updated = serializer.save()
 
-            # Update stock
-            material = instance.material
-            new_returned = instance.return_date is not None
-
-            if not old_returned and new_returned:
-                # Returned: Add back to stock
-                material.quantity += instance.quantity
+            # Solo ajusta stock si la cantidad cambió
+            qty_diff = updated.quantity - old_quantity
+            if qty_diff != 0:
+                material = updated.material
+                material.quantity -= qty_diff
                 material.save()
-            elif old_returned and not new_returned:
-                # Return date removed: Deduct from stock
-                material.quantity -= instance.quantity
-                material.save()
-            elif not new_returned:
-                # Still active, quantity might have changed
-                qty_diff = instance.quantity - old_quantity
-                if qty_diff != 0:
-                    material.quantity -= qty_diff
-                    material.save()
 
     def perform_destroy(self, instance: MaterialLoan) -> None:
         request_user = self.request.user
@@ -168,3 +156,16 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
                 return Response(serializer.data)
             return Response(serializer.errors, status=400)
 
+
+class ConditionReportListCreateView(generics.ListCreateAPIView):
+    serializer_class   = ConditionReportSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False): 
+            return ConditionReport.objects.none()
+
+        user = self.request.user
+        if user.is_superuser:
+            return ConditionReport.objects.select_related('loan', 'user').all()
+        return ConditionReport.objects.select_related('loan', 'user').filter(user=user)

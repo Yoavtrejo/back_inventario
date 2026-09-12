@@ -6,12 +6,13 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from users.views import UserViewSet, UserProfileView
-from loans.views import MaterialLoanViewSet
+from loans.views import MaterialLoanViewSet,ConditionReportListCreateView
 from materials.views import MaterialViewSet
-from isla_control.views import IslaViewSet, ReservacionViewSet
+from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
 from history.views import LoanHistoryViewSet
 from academic.views import (TermViewSet, SubjectViewSet, ClassGroupViewSet, 
                             ActivityViewSet, WorkTeamViewSet, SubmissionViewSet)
+
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -26,12 +27,14 @@ router.register(r'academic/classgroups', ClassGroupViewSet, basename='classgroup
 router.register(r'academic/activities', ActivityViewSet, basename='activity')
 router.register(r'academic/workteams', WorkTeamViewSet, basename='workteam')
 router.register(r'academic/submissions', SubmissionViewSet, basename='submission')
+router.register(r'horarios-bloqueados', HorarioBloqueadoViewSet, basename='horario-bloqueado')
 
 urlpatterns = [
     # Panel de Administración de Django
     path('admin/', admin.site.urls), 
 
     # Endpoints de API
+    path('api/material-loans/condition-reports/', ConditionReportListCreateView.as_view(), name='condition-reports-list'),
     path('api/', include(router.urls)), 
     
     # Perfil del usuario autenticado
@@ -44,6 +47,8 @@ urlpatterns = [
     # Documentación con drf-spectacular
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+
+    path('api/material-loans/condition-reports/', ConditionReportListCreateView.as_view(), name='condition-reports-list'),
 ]
 
 if settings.DEBUG:

@@ -56,7 +56,7 @@ class ConditionReport(models.Model):
         related_name="condition_reports",
     )
     description = models.TextField(blank=True, null=True)
-    photo = models.ImageField(upload_to='condition_reports/')
+    photo = models.ImageField(upload_to='condition_reports/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

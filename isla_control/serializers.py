@@ -2,7 +2,7 @@ from datetime import datetime, date, time, timedelta
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from .models import Isla, Reservacion
+from .models import Isla, Reservacion, HorarioBloqueado
 
 User = get_user_model()
 
@@ -98,3 +98,19 @@ class ReservacionSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+class HorarioBloqueadoSerializer(serializers.ModelSerializer):
+    created_by = serializers.StringRelatedField(read_only=True)
+    isla_numero = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = HorarioBloqueado
+        fields = (
+            'id','isla','isla_numero','fecha',
+            'hora_inicio','hora_fin','motivo',
+            'created_by','created_at',
+        ) 
+        read_only_fields = ('id', 'created_by', 'created_at')
+
+    def get_isla_numero(self, obj):
+        return obj.isla.numero_isla if obj.isla else None

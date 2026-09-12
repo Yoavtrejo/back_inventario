@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body{
+            font-family: 'Poppins';
+            background-color: #F8FAFC;
+            margin:0;
+            padding: 20px;
+        }
+        .card{
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.05);
+            border: 1px solid #EDF2F7;
+        }
+        .header {
+            background: linear-gradient(135deg, #F97316, #E53E6D);
+            padding: 30px 20px;
+            text-align: center;
+            color: #FFFFFF;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .content {
+            padding: 30px 25px;
+            color: #334155;
+        }
+        .content p {
+            line-height: 1.6;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+        .credentials-box {
+            background-color: #FFF7ED;
+            border-left: 4px solid #F97316;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .credentials-item {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .credentials-item strong {
+            color: #475569;
+        }
+        .btn-container {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #F97316, #E53E6D);
+            color: #FFFFFF !important;
+            text-decoration: none;
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0px 4px 15px rgba(229, 62, 109, 0.25);
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #94A3B8;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+       <div class="header">
+            <h1>SIDERED</h1>
+       </div>
+       <div class="content">
+            <h2> ¡Bienvenido, {{ nombre }}</h2>
+            <p> Tu cuenta ha sido creada exitosamente en la plataforma. A continuación encontrarás tus credenciales de acceso:</p>
+
+            <div class="credentials-box">
+                <div class="credentials-item"><strong>Usuario:</strong> {{ username }}</div>
+                {% if password %}
+                <div class="credentials-item"><strong>Contraseña temporal:</strong> {{ password }}</div>
+                {% endif %}
+            </div>
+
+            <p>Te recomendamos iniciar sesión y cambiar tu contraseña en la sección de "Perfil".</p>
+
+            <div class="btn-container">
+                <a href="{{ login_url }}" class="btn">Iniciar Sesión</a>
+            </div>
+       </div>
+        <div class="footer">
+            Este es un correo automático de SIDERED, por favor no respondas a este mensaje.
+        </div>
+    </div>
+    
+</body>
+</html>
