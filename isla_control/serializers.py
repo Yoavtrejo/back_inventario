@@ -2,15 +2,16 @@ from datetime import datetime, date, time, timedelta
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from users.serializers import UserProfileInfoMixin
 from .models import Isla, Reservacion, HorarioBloqueado
 
 User = get_user_model()
 
 
-class AlumnoCompactSerializer(serializers.ModelSerializer):
+class AlumnoCompactSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'matricula', 'carrera')
 
 
 class IslaSerializer(serializers.ModelSerializer):

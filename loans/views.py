@@ -39,7 +39,7 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return MaterialLoan.objects.none()
             
-        base_queryset = MaterialLoan.objects.select_related("requested_by", "approved_by", "material").all()
+        base_queryset = MaterialLoan.objects.select_related("requested_by__profile__carrera", "approved_by__profile__carrera", "material").all()
         request_user = self.request.user
         
         if request_user.is_anonymous:

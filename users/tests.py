@@ -84,3 +84,71 @@ class UserAdminApiTests(APITestCase):
         self.client.force_authenticate(user=self.alumno)
         response = self.client.post(reverse("user-list"), data=self.payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class RegisterApiTests(APITestCase):
+    def setUp(self) -> None:
+        from users.models import Carrera
+
+        self.carrera = Carrera.objects.create(nombre="Ingeniería en Sistemas")
+        self.url = reverse("register")
+        self.payload = {
+            "first_name": "Luis", "last_name": "Pérez", "matricula": "2230001",
+            "email": "luis@example.com", "password": "Segura#2026", "password_confirm": "Segura#2026",
+            "carrera": self.carrera.id,
+        }
+
+    def test_register_creates_alumno_with_profile(self) -> None:
+        from django.core import mail
+
+        response = self.client.post(
+            self.url, data={**self.payload, "is_staff": True, "is_superuser": True}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.data["data"]
+        self.assertEqual(data["username"], "2230001")
+        self.assertEqual(data["matricula"], "2230001")
+        self.assertEqual(data["carrera"], "Ingeniería en Sistemas")
+        self.assertNotIn("password", data)
+        self.assertNotIn("password_confirm", data)
+        user = User.objects.get(username="2230001")
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.check_password("Segura#2026"))
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_register_validations(self) -> None:
+        response = self.client.post(self.url, data={**self.payload, "password_confirm": "Otra#2026x"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.post(
+            self.url, data={**self.payload, "password": "123", "password_confirm": "123"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertEqual(self.client.post(self.url, data=self.payload, format="json").status_code, 201)
+        response = self.client.post(self.url, data={**self.payload, "email": "otro@example.com"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)  # matrícula repetida
+        response = self.client.post(
+            self.url, data={**self.payload, "matricula": "2230002", "email": "LUIS@example.com"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)  # email repetido
+
+    def test_register_survives_email_failure(self) -> None:
+        from unittest import mock
+
+        with mock.patch("users.views.enviar_correo_bienvenida", side_effect=OSError("SMTP caído")):
+            response = self.client.post(self.url, data=self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_carreras_are_public(self) -> None:
+        response = self.client.get(reverse("carrera-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"], [{"id": self.carrera.id, "nombre": "Ingeniería en Sistemas"}])
+
+    def test_profile_fields_are_null_without_profile(self) -> None:
+        user = User.objects.create_user(username="viejo", password="x")
+        self.client.force_authenticate(user=user)
+        response = self.client.get(reverse("user-profile"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["matricula"])
+        self.assertIsNone(response.data["carrera"])

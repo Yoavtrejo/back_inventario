@@ -10,17 +10,18 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from materials.models import Material
+from users.serializers import UserProfileInfoMixin
 from .models import MaterialLoan, ConditionReport
 
 User = get_user_model()
 
 
-class LoanActorUserSerializer(serializers.ModelSerializer):
+class LoanActorUserSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
     """Compact user representation for loan actors (requester / approver)."""
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "first_name", "last_name")
+        fields = ("id", "username", "email", "first_name", "last_name", "matricula", "carrera")
 
 
 class MaterialLoanSerializer(serializers.ModelSerializer):

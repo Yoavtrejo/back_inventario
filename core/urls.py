@@ -5,7 +5,7 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from users.views import UserViewSet, UserProfileView
+from users.views import UserViewSet, UserProfileView, RegisterView, CarreraViewSet
 from loans.views import MaterialLoanViewSet,ConditionReportListCreateView
 from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
@@ -16,6 +16,7 @@ from academic.views import (TermViewSet, SubjectViewSet, ClassGroupViewSet,
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
+router.register(r'carreras', CarreraViewSet, basename='carrera')
 router.register(r'material-loans', MaterialLoanViewSet, basename='material-loan')
 router.register(r'materials', MaterialViewSet, basename='material')
 router.register(r'islas', IslaViewSet, basename='isla')
@@ -39,6 +40,7 @@ urlpatterns = [
     
     # Perfil del usuario autenticado
     path('api/profile/', UserProfileView.as_view(), name='user-profile'),
+    path('api/register/', RegisterView.as_view(), name='register'),
     
     # Autenticación JWT
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

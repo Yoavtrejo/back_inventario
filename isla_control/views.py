@@ -78,7 +78,7 @@ class ReservacionViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         Reservacion.actualizar_reservaciones_expiradas()
-        base_queryset = Reservacion.objects.select_related('isla', 'alumno').all()
+        base_queryset = Reservacion.objects.select_related('isla', 'alumno__profile__carrera').all()
         if self.request.user.is_superuser:
             return base_queryset
         return base_queryset.filter(alumno=self.request.user)
