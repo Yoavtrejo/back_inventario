@@ -1,14 +1,12 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets, permissions, generics
-from .serializers import UserSerializer
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
-from django.conf import settings
-from rest_framework import viewsets
+from core.permissions import IsSuperUser
+from .serializers import UserSerializer, ProfileSerializer
 from .utils import enviar_correo_bienvenida
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
-    serializer_class = UserSerializer
+    serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
@@ -17,7 +15,8 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = get_user_model().objects.all().order_by('-date_joined')
     serializer_class = UserSerializer   
-    permission_classes = [permissions.IsAdminUser]
+    # IsAdminUser solo valida is_staff (docentes); la gestión de usuarios es solo para admins
+    permission_classes = [IsSuperUser]
 
     def perform_create(self, serializer):
         raw_password = self.request.data.get('password', None)
