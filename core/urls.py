@@ -10,6 +10,7 @@ from loans.views import MaterialLoanViewSet,ConditionReportListCreateView
 from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
 from history.views import LoanHistoryViewSet
+from resources.views import ResourceViewSet
 from academic.views import (TermViewSet, SubjectViewSet, ClassGroupViewSet, 
                             ActivityViewSet, WorkTeamViewSet, SubmissionViewSet)
 
@@ -28,6 +29,7 @@ router.register(r'academic/classgroups', ClassGroupViewSet, basename='classgroup
 router.register(r'academic/activities', ActivityViewSet, basename='activity')
 router.register(r'academic/workteams', WorkTeamViewSet, basename='workteam')
 router.register(r'academic/submissions', SubmissionViewSet, basename='submission')
+router.register(r'resources', ResourceViewSet, basename='resource')
 router.register(r'horarios-bloqueados', HorarioBloqueadoViewSet, basename='horario-bloqueado')
 
 urlpatterns = [

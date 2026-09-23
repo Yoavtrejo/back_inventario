@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'materials',
     'isla_control',
     'academic',
+    'resources',
 ]
 
 MIDDLEWARE = [
