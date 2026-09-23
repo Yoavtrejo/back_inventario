@@ -35,6 +35,7 @@ class Activity(models.Model):
     partial_period = models.PositiveIntegerField(help_text="Número de parcial, ej. 1, 2, 3")
     teacher_file = models.FileField(upload_to='activities_teacher/', blank=True, null=True)
     is_team_activity = models.BooleanField(default=False)
+    due_date = models.DateTimeField(null=True, blank=True, help_text="Fecha límite de entrega")
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

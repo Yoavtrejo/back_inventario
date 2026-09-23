@@ -293,3 +293,37 @@ class SubmissionPermissionTests(AcademicTestCase):
         self.client.force_authenticate(user=self.alumno)
         response = self.client.delete(reverse("submission-detail", kwargs={"pk": submission.pk}))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class DueDateTests(AcademicTestCase):
+    def test_submission_is_marked_late_after_due_date(self) -> None:
+        from datetime import timedelta
+        from django.utils import timezone
+
+        self.activity.due_date = timezone.now() - timedelta(days=1)
+        self.activity.save()
+        self.client.force_authenticate(user=self.alumno)
+        response = self.client.post(
+            reverse("submission-list"),
+            data={"activity": self.activity.id, "student_file": pkt_file()},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["data"]["is_late"])
+
+        self.team_activity.due_date = timezone.now() + timedelta(days=1)
+        self.team_activity.save()
+        on_time = Submission.objects.create(activity=self.team_activity, student=self.alumno)
+        response = self.client.get(reverse("submission-detail", kwargs={"pk": on_time.pk}))
+        self.assertFalse(response.data["data"]["is_late"])
+
+    def test_activity_exposes_due_date(self) -> None:
+        self.client.force_authenticate(user=self.docente)
+        response = self.client.post(
+            reverse("activity-list"),
+            data={"group": self.group.id, "title": "P3", "partial_period": 2,
+                  "due_date": "2026-10-01T23:59:00-06:00"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNotNone(response.data["data"]["due_date"])

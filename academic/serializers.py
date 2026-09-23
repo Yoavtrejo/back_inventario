@@ -72,11 +72,18 @@ class WorkTeamSerializer(serializers.ModelSerializer):
         return attrs
 
 class SubmissionSerializer(serializers.ModelSerializer):
+    # Las entregas tardías se aceptan, solo se marcan
+    is_late = serializers.SerializerMethodField()
+
     class Meta:
         model = Submission
         fields = '__all__'
         # grade y status solo los cambia el docente del grupo (SubmissionGradeSerializer)
         read_only_fields = ('student', 'status', 'grade', 'created_at', 'updated_at')
+
+    def get_is_late(self, obj) -> bool:
+        due_date = obj.activity.due_date
+        return bool(due_date and obj.created_at and obj.created_at > due_date)
 
 class SubmissionGradeSerializer(serializers.ModelSerializer):
     """Calificación de una entrega por el docente del grupo o un admin."""
