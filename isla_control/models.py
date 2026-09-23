@@ -82,8 +82,10 @@ class Reservacion(models.Model):
         if self.duracion_horas < 1:
             raise ValidationError("La duración de la reservación debe ser de al menos 1 hora.")
         
-        from datetime import time as time_type
-        hora_fin_reserva = time_type(self.hora_inicio.hour + self.duracion_horas, 0)
+        inicio = datetime.combine(self.fecha_reserva, self.hora_inicio)
+        fin = inicio + timedelta(hours=self.duracion_horas)
+        # Si la reserva cruza la medianoche, se compara hasta el final del día
+        hora_fin_reserva = fin.time() if fin.date() == inicio.date() else datetime.max.time()
 
         bloqueos = HorarioBloqueado.objects.filter(
             fecha=self.fecha_reserva,

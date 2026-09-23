@@ -1,6 +1,7 @@
 import datetime as dt
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from isla_control.models import Isla, Reservacion
@@ -64,7 +65,7 @@ class IslaControlApiTests(APITestCase):
 
     def test_regular_user_can_reserve_isla_max_4_hours(self) -> None:
         self.client.force_authenticate(user=self.regular_user)
-        fecha_reserva = dt.date.today()
+        fecha_reserva = dt.date.today() + dt.timedelta(days=1)
         
         # Valid reservation (2 hours)
         response = self.client.post(
@@ -98,7 +99,7 @@ class IslaControlApiTests(APITestCase):
 
     def test_overlapping_reservations_are_rejected(self) -> None:
         self.client.force_authenticate(user=self.regular_user)
-        fecha_reserva = dt.date.today()
+        fecha_reserva = dt.date.today() + dt.timedelta(days=1)
 
         # Reserve island from 10:00 to 12:00
         Reservacion.objects.create(
@@ -125,14 +126,15 @@ class IslaControlApiTests(APITestCase):
 
     def test_scan_qr_starts_timer(self) -> None:
         self.client.force_authenticate(user=self.regular_user)
-        fecha_reserva = dt.date.today()
+        # Reserva que inicia ahora mismo (hora local), para que no expire
+        ahora = timezone.localtime()
 
         # Create reservation
         res = Reservacion.objects.create(
             isla=self.isla1,
             alumno=self.regular_user,
-            fecha_reserva=fecha_reserva,
-            hora_inicio="09:00:00",
+            fecha_reserva=ahora.date(),
+            hora_inicio=ahora.time().replace(microsecond=0),
             duracion_horas=3
         )
         
