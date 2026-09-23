@@ -187,3 +187,6 @@ TEMPLATES = [
         },
     },
 ]
+
+# Los tests guardan archivos subidos en un directorio temporal
+TEST_RUNNER = 'core.test_runner.TempMediaDiscoverRunner'
