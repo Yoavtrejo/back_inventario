@@ -100,6 +100,17 @@ class ReservacionSerializer(serializers.ModelSerializer):
 
         return attrs
 
+class OcupacionSerializer(serializers.ModelSerializer):
+    """Ocupación de islas sin datos personales del alumno."""
+    es_mia = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Reservacion
+        fields = ('id', 'isla', 'fecha_reserva', 'hora_inicio', 'duracion_horas', 'es_mia')
+
+    def get_es_mia(self, obj) -> bool:
+        return obj.alumno_id == self.context['request'].user.id
+
 class HorarioBloqueadoSerializer(serializers.ModelSerializer):
     created_by = serializers.StringRelatedField(read_only=True)
     isla_numero = serializers.SerializerMethodField(read_only=True)

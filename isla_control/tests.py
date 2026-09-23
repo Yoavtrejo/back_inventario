@@ -201,3 +201,47 @@ class IslaControlApiTests(APITestCase):
         self.isla1.refresh_from_db()
         self.assertEqual(self.isla1.estado, 'Disponible')
 
+
+
+class OcupacionApiTests(APITestCase):
+    def setUp(self) -> None:
+        self.alumno = User.objects.create_user(username="alumno", password="x")
+        self.otro = User.objects.create_user(username="otro", password="x")
+        self.isla = Isla.objects.create(numero_isla=1, equipos_computo=4)
+        self.manana = dt.date.today() + dt.timedelta(days=1)
+        self.mia = Reservacion.objects.create(
+            isla=self.isla, alumno=self.alumno, fecha_reserva=self.manana, hora_inicio="08:00", duracion_horas=2
+        )
+        self.ajena = Reservacion.objects.create(
+            isla=self.isla, alumno=self.otro, fecha_reserva=self.manana, hora_inicio="12:00", duracion_horas=1
+        )
+        cancelada = Reservacion.objects.create(
+            isla=self.isla, alumno=self.otro, fecha_reserva=self.manana, hora_inicio="15:00", duracion_horas=1
+        )
+        cancelada.cancelada = True
+        cancelada.save()
+        self.url = reverse("reservacion-ocupacion")
+
+    def test_returns_all_active_reservations_without_personal_data(self) -> None:
+        self.client.force_authenticate(user=self.alumno)
+        response = self.client.get(self.url, {"desde": self.manana.isoformat(), "hasta": self.manana.isoformat()})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data["data"]
+        self.assertEqual([item["id"] for item in data], [self.mia.id, self.ajena.id])
+        self.assertEqual([item["es_mia"] for item in data], [True, False])
+        self.assertEqual(
+            set(data[0].keys()), {"id", "isla", "fecha_reserva", "hora_inicio", "duracion_horas", "es_mia"}
+        )
+
+    def test_validates_range(self) -> None:
+        self.client.force_authenticate(user=self.alumno)
+        hoy = dt.date.today()
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.get(self.url, {"desde": hoy.isoformat(), "hasta": (hoy - dt.timedelta(days=1)).isoformat()})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.get(self.url, {"desde": hoy.isoformat(), "hasta": (hoy + dt.timedelta(days=32)).isoformat()})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_requires_authentication(self) -> None:
+        response = self.client.get(self.url, {"desde": "2026-09-01", "hasta": "2026-09-30"})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

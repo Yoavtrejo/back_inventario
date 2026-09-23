@@ -1,4 +1,5 @@
 import io
+from datetime import datetime
 import qrcode
 from django.http import HttpResponse
 from django.utils import timezone
@@ -10,7 +11,9 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from core.json_api_mixin import WrappedStandardApiMixin
 
 from .models import Isla, Reservacion, HorarioBloqueado
-from .serializers import IslaSerializer, ReservacionSerializer, HorarioBloqueadoSerializer
+from datetime import timedelta
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from .serializers import IslaSerializer, ReservacionSerializer, HorarioBloqueadoSerializer, OcupacionSerializer
 
 
 class IsSuperUserOrReadOnly(permissions.BasePermission):
@@ -140,6 +143,41 @@ class ReservacionViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK
         )
+
+    OCUPACION_MAX_DIAS = 31
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter('desde', str, required=True, description='YYYY-MM-DD'),
+            OpenApiParameter('hasta', str, required=True, description='YYYY-MM-DD (máximo 31 días después de desde)'),
+        ],
+        responses=OcupacionSerializer(many=True),
+    )
+    @action(detail=False, methods=['get'], url_path='ocupacion')
+    def ocupacion(self, request):
+        """
+        Reservaciones no canceladas de todas las islas en un rango de fechas, sin datos personales.
+        Sirve para que el calendario muestre los horarios ocupados por otros alumnos.
+        """
+        fechas = {}
+        for param in ('desde', 'hasta'):
+            valor = request.query_params.get(param)
+            try:
+                fechas[param] = datetime.strptime(valor or '', '%Y-%m-%d').date()
+            except ValueError:
+                raise ValidationError({param: 'Requerido con formato YYYY-MM-DD.'})
+        desde, hasta = fechas['desde'], fechas['hasta']
+        if hasta < desde:
+            raise ValidationError({'hasta': 'Debe ser igual o posterior a desde.'})
+        if hasta - desde > timedelta(days=self.OCUPACION_MAX_DIAS):
+            raise ValidationError({'hasta': f'El rango máximo es de {self.OCUPACION_MAX_DIAS} días.'})
+
+        Reservacion.actualizar_reservaciones_expiradas()
+        reservaciones = Reservacion.objects.filter(
+            fecha_reserva__range=(desde, hasta), cancelada=False
+        ).order_by('fecha_reserva', 'hora_inicio')
+        serializer = OcupacionSerializer(reservaciones, many=True, context=self.get_serializer_context())
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='cancelar')
     def cancelar(self, request, pk=None):
