@@ -47,8 +47,6 @@ urlpatterns = [
     # Documentación con drf-spectacular
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-
-    path('api/material-loans/condition-reports/', ConditionReportListCreateView.as_view(), name='condition-reports-list'),
 ]
 
 if settings.DEBUG:
