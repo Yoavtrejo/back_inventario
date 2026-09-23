@@ -41,10 +41,13 @@ class MaterialLoanSerializer(serializers.ModelSerializer):
             "requested_by",
             "approved_by",
             "has_condition_report",
+            "status",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "requested_by", "approved_by", "has_condition_report", "created_at", "updated_at")
+        read_only_fields = (
+            "id", "requested_by", "approved_by", "has_condition_report", "status", "created_at", "updated_at",
+        )
 
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -100,6 +103,10 @@ class MaterialLoanSerializer(serializers.ModelSerializer):
 
     def update(self, instance: MaterialLoan, validated_data: dict[str, Any]) -> MaterialLoan:
         request_user = self.context["request"].user
+        if not instance.is_active:
+            raise serializers.ValidationError(
+                {"status": f"El préstamo está {instance.status} y ya no puede modificarse."},
+            )
         if not request_user.is_superuser and instance.approved_by_id is not None:
             raise serializers.ValidationError(
                 {"approved_by": "Approved loans cannot be modified by the requester."},

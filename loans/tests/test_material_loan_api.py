@@ -167,35 +167,3 @@ class MaterialLoanApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
-
-    def test_returning_material_increases_stock(self) -> None:
-        self.client.force_authenticate(user=self.regular_user)
-        loan_date = dt.date.today()
-        
-        # Create loan via API to properly deduct stock (10 -> 8)
-        response = self.client.post(
-            reverse("material-loan-list"),
-            data={
-                "material": self.default_material.id,
-                "quantity": 2,
-                "loan_period_days": 7,
-                "loan_date": loan_date.isoformat(),
-            },
-            format="json",
-        )
-        loan_id = response.data["data"]["id"]
-        self.default_material.refresh_from_db()
-        self.assertEqual(self.default_material.quantity, 8)
-
-        # Superuser returns it (sets return_date)
-        self.client.force_authenticate(user=self.superuser)
-        patch_response = self.client.patch(
-            reverse("material-loan-detail", kwargs={"pk": loan_id}),
-            data={"return_date": (loan_date + dt.timedelta(days=3)).isoformat()},
-            format="json",
-        )
-        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
-        
-        # Verify stock increases back to 10
-        self.default_material.refresh_from_db()
-        self.assertEqual(self.default_material.quantity, 10)

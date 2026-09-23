@@ -7,7 +7,22 @@ class MaterialLoan(models.Model):
 
     - Any authenticated user may create a request (requested_by is enforced server-side).
     - Only a superuser may set ``approved_by`` (authorization).
+
+    Flujo de estados y stock:
+    Pendiente (descuenta stock) -> Autorizado -> Finalizado (devuelve stock)
+    Pendiente -> Rechazado | Cancelado (devuelven stock)
     """
+
+    class Status(models.TextChoices):
+        PENDIENTE = 'Pendiente', 'Pendiente'
+        AUTORIZADO = 'Autorizado', 'Autorizado'
+        FINALIZADO = 'Finalizado', 'Finalizado'
+        RECHAZADO = 'Rechazado', 'Rechazado'
+        CANCELADO = 'Cancelado', 'Cancelado'
+
+    # Estados en los que el material sigue descontado del stock
+    ACTIVE_STATUSES = (Status.PENDIENTE, Status.AUTORIZADO)
+
     material = models.ForeignKey(
         'materials.Material',
         on_delete=models.PROTECT,
@@ -30,11 +45,22 @@ class MaterialLoan(models.Model):
         null=True,
     )
     has_condition_report = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDIENTE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("-loan_date", "-id")
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in self.ACTIVE_STATUSES
+
+    def save(self, *args, **kwargs):
+        # Mientras está activo, el estado refleja si ya fue autorizado
+        if self.is_active:
+            self.status = self.Status.AUTORIZADO if self.approved_by_id else self.Status.PENDIENTE
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.material.name if self.material else 'Unnamed'} ({self.quantity}) — {self.loan_date}"
