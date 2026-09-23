@@ -327,3 +327,28 @@ class DueDateTests(AcademicTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIsNotNone(response.data["data"]["due_date"])
+
+
+class GroupStudentsDetailTests(AcademicTestCase):
+    def test_students_detail_visible_to_teacher_and_admin_only(self) -> None:
+        from users.models import Carrera, UserProfile
+
+        UserProfile.objects.create(
+            user=self.alumno, matricula="2230001", carrera=Carrera.objects.create(nombre="ISC")
+        )
+        url = reverse("classgroup-detail", kwargs={"pk": self.group.pk})
+
+        for user in (self.docente, self.admin):
+            self.client.force_authenticate(user=user)
+            data = self.client.get(url).data["data"]
+            self.assertEqual(sorted(data["students"]), sorted([self.alumno.id, self.alumno2.id]))
+            detail = {s["id"]: s for s in data["students_detail"]}
+            self.assertEqual(detail[self.alumno.id]["matricula"], "2230001")
+            self.assertEqual(detail[self.alumno.id]["carrera"], "ISC")
+            self.assertIsNone(detail[self.alumno2.id]["matricula"])
+
+        self.client.force_authenticate(user=self.alumno)
+        data = self.client.get(url).data["data"]
+        self.assertEqual(data["students_detail"], [])
+        response = self.client.get(reverse("classgroup-list"), {"disponibles": "true"})
+        self.assertTrue(all(g["students_detail"] == [] for g in response.data["data"]))

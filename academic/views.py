@@ -64,7 +64,7 @@ class ClassGroupViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return ClassGroup.objects.none()
         user = self.request.user
-        queryset = ClassGroup.objects.select_related('term', 'subject', 'teacher').prefetch_related('students')
+        queryset = ClassGroup.objects.select_related('term', 'subject', 'teacher').prefetch_related('students__profile__carrera')
         if self.action == 'join_group':
             return queryset
         disponibles = self.request.query_params.get('disponibles', '').lower() in ('1', 'true')

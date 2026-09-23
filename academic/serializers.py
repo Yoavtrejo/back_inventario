@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from users.serializers import UserProfileInfoMixin
 from .models import Term, Subject, ClassGroup, Activity, WorkTeam, Submission
 
 User = get_user_model()
@@ -14,17 +16,33 @@ class SubjectSerializer(serializers.ModelSerializer):
         model = Subject
         fields = '__all__'
 
+class GroupStudentSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'matricula', 'carrera')
+
 class ClassGroupSerializer(serializers.ModelSerializer):
     term_name = serializers.CharField(source='term.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     teacher_name = serializers.CharField(source='teacher.username', read_only=True)
+    students_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = ClassGroup
-        fields = ['id', 'name', 'term', 'term_name', 'subject', 'subject_name', 'teacher', 'teacher_name', 'students']
+        fields = ['id', 'name', 'term', 'term_name', 'subject', 'subject_name', 'teacher', 'teacher_name', 'students',
+                  'students_detail']
         extra_kwargs = {
             'students': {'required': False}
         }
+
+    @extend_schema_field(GroupStudentSerializer(many=True))
+    def get_students_detail(self, obj):
+        # Datos de los alumnos solo para el docente del grupo o un admin; vacío para alumnos
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not (user.is_superuser or obj.teacher_id == user.id):
+            return []
+        return GroupStudentSerializer(obj.students.all(), many=True).data
 
 class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
