@@ -80,6 +80,8 @@ class ReservacionViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Reservacion.objects.none()
         Reservacion.actualizar_reservaciones_expiradas()
         base_queryset = Reservacion.objects.select_related('isla', 'alumno__profile__carrera').all()
         if self.request.user.is_superuser:
@@ -217,7 +219,7 @@ class HorarioBloqueadoViewSet(viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,) 
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_views', False):
+        if getattr(self, 'swagger_fake_view', False):
             return HorarioBloqueado.objects.none()
         return HorarioBloqueado.objects.select_related('isla', 'created_by').all()
 

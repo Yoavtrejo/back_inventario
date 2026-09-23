@@ -124,5 +124,5 @@ class HorarioBloqueadoSerializer(serializers.ModelSerializer):
         ) 
         read_only_fields = ('id', 'created_by', 'created_at')
 
-    def get_isla_numero(self, obj):
+    def get_isla_numero(self, obj) -> int | None:
         return obj.isla.numero_isla if obj.isla else None
