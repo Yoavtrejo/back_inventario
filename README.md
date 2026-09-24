@@ -25,3 +25,62 @@ python manage.py runserver
 ```bash
 python manage.py test
 ```
+
+## Correo
+
+Configúralo en `.env` (ver `.env.example`):
+
+- **Desarrollo:** `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend` imprime los correos en la consola.
+- **Gmail:** activa la verificación en dos pasos, genera una contraseña de aplicación y colócala en
+  `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD`.
+
+`FRONTEND_URL` (por defecto `http://localhost:3000`) se usa para los enlaces de los correos.
+
+## Recordatorios de entrega
+
+El command `enviar_recordatorios` avisa por correo a los alumnos que no han entregado:
+24 h antes, 1 h antes y una vez al vencer (solo actividades vencidas hace 7 días o menos).
+Es idempotente: cada aviso se envía una sola vez por alumno y actividad.
+
+```bash
+python manage.py enviar_recordatorios            # envía
+python manage.py enviar_recordatorios --dry-run  # solo muestra a quién se enviaría
+```
+
+Programarlo cada 15 minutos con cron (`crontab -e`):
+
+```
+*/15 * * * * cd /ruta/a/back_inventario && .venv/bin/python manage.py enviar_recordatorios >> /tmp/sidered-recordatorios.log 2>&1
+```
+
+O con un timer de systemd (usuario):
+
+```ini
+# ~/.config/systemd/user/sidered-recordatorios.service
+[Unit]
+Description=SIDERED recordatorios de entrega
+
+[Service]
+Type=oneshot
+WorkingDirectory=/ruta/a/back_inventario
+ExecStart=/ruta/a/back_inventario/.venv/bin/python manage.py enviar_recordatorios
+
+# ~/.config/systemd/user/sidered-recordatorios.timer
+[Unit]
+Description=Ejecuta los recordatorios de SIDERED cada 15 minutos
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now sidered-recordatorios.timer
+```
+
+Los correos por cambio de estado de una entrega ("En revisión" y "Calificado") se envían
+automáticamente al actualizarla; no requieren el command.

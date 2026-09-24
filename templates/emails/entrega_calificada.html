@@ -1,0 +1,7 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h2>Hola, {{ nombre }}</h2>
+<p>Tu entrega{% if equipo %} del equipo <strong>{{ equipo }}</strong>{% endif %} fue calificada.</p>
+<div class="highlight">{{ calificacion }}/10</div>
+{% include "emails/_actividad_info.html" %}
+{% endblock %}

@@ -1,0 +1,13 @@
+{% autoescape off %}
+Hola, {{ nombre }}
+
+La fecha límite de esta actividad venció el {{ fecha_limite }} y no registramos tu entrega. Aún puedes entregar, pero quedará marcada como tardía.
+
+Actividad: {{ actividad }}
+Materia: {{ materia }}
+Grupo: {{ grupo }}
+{% if sin_equipo %}
+Esta actividad es en equipo y aún no tienes equipo, consulta a tu docente.
+{% endif %}
+Ver mis actividades: {{ activities_url }}
+{% endautoescape %}

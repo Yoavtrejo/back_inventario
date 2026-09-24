@@ -1,0 +1,7 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h2>Hola, {{ nombre }}</h2>
+<p>La fecha límite de esta actividad venció el <strong>{{ fecha_limite }}</strong> y no registramos tu entrega. Aún puedes entregar, pero quedará marcada como tardía.</p>
+{% include "emails/_actividad_info.html" %}
+{% if sin_equipo %}<p class="note">Esta actividad es en equipo y aún no tienes equipo, consulta a tu docente.</p>{% endif %}
+{% endblock %}

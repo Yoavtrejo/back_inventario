@@ -1,0 +1,14 @@
+{% autoescape off %}
+Hola, {{ nombre }}
+
+Te recordamos que aún no entregas esta actividad y el plazo está por cerrar: te quedan {{ tiempo_restante }}.
+
+Actividad: {{ actividad }}
+Materia: {{ materia }}
+Grupo: {{ grupo }}
+Fecha límite: {{ fecha_limite }}
+{% if sin_equipo %}
+Esta actividad es en equipo y aún no tienes equipo, consulta a tu docente.
+{% endif %}
+Ver mis actividades: {{ activities_url }}
+{% endautoescape %}

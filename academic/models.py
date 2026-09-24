@@ -69,3 +69,21 @@ class Submission(models.Model):
         submitter = self.student.username if self.student else self.work_team.name if self.work_team else "Unknown"
         return f"Entrega: {submitter} -> {self.activity.title} ({self.status})"
 
+class NotificationLog(models.Model):
+    """Recordatorios de entrega ya enviados; evita duplicar correos entre corridas del command."""
+
+    class Kind(models.TextChoices):
+        RECORDATORIO_24H = 'RECORDATORIO_24H', 'Recordatorio 24 h'
+        RECORDATORIO_1H = 'RECORDATORIO_1H', 'Recordatorio 1 h'
+        VENCIDA = 'VENCIDA', 'Entrega vencida'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notification_logs')
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='notification_logs')
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'activity', 'kind')
+
+    def __str__(self):
+        return f"{self.kind} - {self.user.username} - {self.activity.title}"

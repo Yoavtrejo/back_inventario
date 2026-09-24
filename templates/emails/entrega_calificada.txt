@@ -1,0 +1,11 @@
+{% autoescape off %}
+Hola, {{ nombre }}
+
+Tu entrega{% if equipo %} del equipo {{ equipo }}{% endif %} fue calificada: {{ calificacion }}/10
+
+Actividad: {{ actividad }}
+Materia: {{ materia }}
+Grupo: {{ grupo }}
+
+Ver mis actividades: {{ activities_url }}
+{% endautoescape %}

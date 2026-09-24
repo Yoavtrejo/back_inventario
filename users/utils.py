@@ -10,8 +10,8 @@ def enviar_correo_bienvenida(user, raw_password=None):
     context = {
         'nombre': user.first_name or user.username,
         'username': user.username,
-        'password': raw_password,  
-        'login_url': 'http://192.168.100.12:3000/login'
+        'password': raw_password,
+        'login_url': f'{settings.FRONTEND_URL}/login',
     }
 
     text_content = f"Hola {context['nombre']},\n\nTu cuenta en SIDERED ha sido creada.\nUsuario: {context['username']}"

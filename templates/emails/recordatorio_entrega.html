@@ -1,0 +1,7 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h2>Hola, {{ nombre }}</h2>
+<p>Te recordamos que aún no entregas esta actividad y el plazo está por cerrar: <strong>te quedan {{ tiempo_restante }}</strong>.</p>
+{% include "emails/_actividad_info.html" %}
+{% if sin_equipo %}<p class="note">Esta actividad es en equipo y aún no tienes equipo, consulta a tu docente.</p>{% endif %}
+{% endblock %}

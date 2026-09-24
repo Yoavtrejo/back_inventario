@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Avg, Q
 from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.decorators import action
@@ -8,6 +9,7 @@ from .serializers import (TermSerializer, SubjectSerializer, ClassGroupSerialize
                           ActivitySerializer, WorkTeamSerializer, SubmissionSerializer,
                           SubmissionGradeSerializer, SubmissionFileSerializer)
 from core.json_api_mixin import WrappedStandardApiMixin
+from .notifications import notify_submission_status_change
 
 # Roles: admin = is_superuser, docente = is_staff, alumno = ninguno de los dos.
 
@@ -241,10 +243,15 @@ class SubmissionViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
         user = request.user
 
         if can_manage_group(user, instance.activity.group):
+            old_status, old_grade = instance.status, instance.grade
             data = {key: request.data[key] for key in ('grade', 'status') if key in request.data}
             serializer = SubmissionGradeSerializer(instance, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            submission = serializer.save()
+            # Correo al alumno (o al equipo) si pasó a 'En revisión' o se calificó
+            transaction.on_commit(
+                lambda: notify_submission_status_change(submission, old_status, old_grade)
+            )
         elif self._is_owner(user, instance):
             if 'grade' in request.data or 'status' in request.data:
                 raise PermissionDenied('Solo el docente del grupo puede calificar la entrega.')
