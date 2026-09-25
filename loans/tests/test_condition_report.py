@@ -14,6 +14,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from loans.tests.utils import create_loan
 from loans.models import MaterialLoan, ConditionReport
 from materials.models import Material
 
@@ -64,9 +65,9 @@ class ConditionReportTests(APITestCase):
         )
         
         # Préstamo aprobado listo para reporte
-        self.approved_loan = MaterialLoan.objects.create(
-            material=self.material,
-            quantity=1,
+        self.approved_loan = create_loan(
+            self.material,
+            1,
             loan_period_days=5,
             loan_date=dt.date.today(),
             requested_by=self.requester,
@@ -74,9 +75,9 @@ class ConditionReportTests(APITestCase):
         )
 
         # Préstamo pendiente (sin aprobación)
-        self.pending_loan = MaterialLoan.objects.create(
-            material=self.material,
-            quantity=1,
+        self.pending_loan = create_loan(
+            self.material,
+            1,
             loan_period_days=5,
             loan_date=dt.date.today(),
             requested_by=self.requester,

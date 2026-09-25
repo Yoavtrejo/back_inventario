@@ -6,7 +6,13 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from .models import MaterialLoan, ConditionReport
+from .models import MaterialLoan, LoanItem, ConditionReport
+
+
+class LoanItemInline(admin.TabularInline):
+    model = LoanItem
+    extra = 0
+    raw_id_fields = ("material",)
 
 
 @admin.register(MaterialLoan)
@@ -15,8 +21,7 @@ class MaterialLoanAdmin(admin.ModelAdmin):
 
     list_display = (
         "id",
-        "material",
-        "quantity",
+        "status",
         "loan_period_days",
         "loan_date",
         "return_date",
@@ -25,8 +30,9 @@ class MaterialLoanAdmin(admin.ModelAdmin):
         "has_condition_report",
         "created_at",
     )
-    list_select_related = ("requested_by", "approved_by", "material")
-    search_fields = ("material__name", "requested_by__username", "approved_by__username")
+    list_select_related = ("requested_by", "approved_by")
+    search_fields = ("items__material__name", "requested_by__username", "approved_by__username")
+    inlines = (LoanItemInline,)
     readonly_fields = ("created_at", "updated_at")
 
 
@@ -41,6 +47,6 @@ class ConditionReportAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_select_related = ("loan", "user")
-    search_fields = ("loan__material__name", "user__username", "description")
+    search_fields = ("loan__items__material__name", "user__username", "description")
     readonly_fields = ("created_at", "updated_at")
 

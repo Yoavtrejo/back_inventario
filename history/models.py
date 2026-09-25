@@ -2,8 +2,11 @@ from django.db import models
 
 class LoanHistory(models.Model):
     original_loan_id = models.IntegerField(null=True, blank=True)
-    material_name = models.CharField(max_length=255)
+    # Resumen legible de los materiales ("2 × Cable, 1 × Pinzas") y total de unidades
+    material_name = models.TextField()
     quantity = models.PositiveIntegerField()
+    # Detalle por material: [{"material_name": str, "quantity": int}]
+    items = models.JSONField(default=list, blank=True)
     requested_by_username = models.CharField(max_length=150)
     approved_by_username = models.CharField(max_length=150)
     approval_date = models.DateTimeField(auto_now_add=True)

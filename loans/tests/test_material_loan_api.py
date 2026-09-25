@@ -11,6 +11,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from loans.tests.utils import create_loan
 from loans.models import MaterialLoan
 from materials.models import Material
 
@@ -54,8 +55,7 @@ class MaterialLoanApiTests(APITestCase):
         response = self.client.post(
             reverse("material-loan-list"),
             data={
-                "material": self.default_material.id,
-                "quantity": 2,
+                "items": [{"material": self.default_material.id, "quantity": 2}],
                 "loan_period_days": 7,
                 "loan_date": loan_date.isoformat(),
             },
@@ -64,7 +64,10 @@ class MaterialLoanApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(response.data["success"])
         loan_payload = response.data["data"]
-        self.assertEqual(loan_payload["material"], self.default_material.id)
+        self.assertEqual(len(loan_payload["items"]), 1)
+        self.assertEqual(loan_payload["items"][0]["material"], self.default_material.id)
+        self.assertEqual(loan_payload["items"][0]["material_name"], "Beaker 250ml")
+        self.assertEqual(loan_payload["items"][0]["quantity"], 2)
         self.assertEqual(loan_payload["requested_by"]["id"], self.regular_user.id)
         
         # Verify quantity decreased to 8
@@ -73,9 +76,9 @@ class MaterialLoanApiTests(APITestCase):
 
     def test_superuser_can_approve_loan_via_approved_by_user_id(self) -> None:
         # Note: creation via models.objects.create bypasses views/API save, so stock is not automatically decremented
-        loan = MaterialLoan.objects.create(
-            material=self.default_material,
-            quantity=1,
+        loan = create_loan(
+            self.default_material,
+            1,
             loan_period_days=3,
             loan_date=dt.date.today(),
             requested_by=self.regular_user,
@@ -91,9 +94,9 @@ class MaterialLoanApiTests(APITestCase):
         self.assertEqual(response.data["data"]["approved_by"]["id"], self.superuser.id)
 
     def test_requester_cannot_modify_approved_loan(self) -> None:
-        loan = MaterialLoan.objects.create(
-            material=self.default_material,
-            quantity=1,
+        loan = create_loan(
+            self.default_material,
+            1,
             loan_period_days=5,
             loan_date=dt.date.today(),
             requested_by=self.regular_user,
@@ -102,7 +105,7 @@ class MaterialLoanApiTests(APITestCase):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.patch(
             reverse("material-loan-detail", kwargs={"pk": loan.pk}),
-            data={"quantity": 99},
+            data={"loan_period_days": 99},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -110,9 +113,9 @@ class MaterialLoanApiTests(APITestCase):
         self.assertEqual(response.data["error_code"], "VALIDATION_ERROR")
 
     def test_requester_cannot_delete_approved_loan(self) -> None:
-        loan = MaterialLoan.objects.create(
-            material=self.default_material,
-            quantity=1,
+        loan = create_loan(
+            self.default_material,
+            1,
             loan_period_days=10,
             loan_date=dt.date.today(),
             requested_by=self.regular_user,
@@ -124,9 +127,9 @@ class MaterialLoanApiTests(APITestCase):
         self.assertFalse(response.data["success"])
 
     def test_non_superuser_cannot_access_other_users_loan(self) -> None:
-        loan = MaterialLoan.objects.create(
-            material=self.default_material,
-            quantity=1,
+        loan = create_loan(
+            self.default_material,
+            1,
             loan_period_days=2,
             loan_date=dt.date.today(),
             requested_by=self.other_user,
@@ -141,8 +144,7 @@ class MaterialLoanApiTests(APITestCase):
         response = self.client.post(
             reverse("material-loan-list"),
             data={
-                "material": self.default_material.id,
-                "quantity": 1,
+                "items": [{"material": self.default_material.id, "quantity": 1}],
                 "loan_period_days": 1,
                 "loan_date": loan_date.isoformat(),
                 "return_date": (loan_date - dt.timedelta(days=1)).isoformat(),
@@ -158,8 +160,7 @@ class MaterialLoanApiTests(APITestCase):
         response = self.client.post(
             reverse("material-loan-list"),
             data={
-                "material": self.default_material.id,
-                "quantity": 11,  # Stock is only 10
+                "items": [{"material": self.default_material.id, "quantity": 11}],  # Stock is only 10
                 "loan_period_days": 7,
                 "loan_date": loan_date.isoformat(),
             },

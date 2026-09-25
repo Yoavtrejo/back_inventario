@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import django_filters
 from django.db.models import QuerySet
 from rest_framework import generics, permissions, viewsets
 from rest_framework.exceptions import PermissionDenied
@@ -19,7 +20,17 @@ from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema
 from .models import MaterialLoan, ConditionReport
 from .serializers import MaterialLoanSerializer, ConditionReportSerializer
-from .stock import adjust_material_stock
+from .stock import release_loan_items
+from history.services import sync_loan_history
+
+
+class MaterialLoanFilter(django_filters.FilterSet):
+    # ?material=<id>: préstamos que incluyen ese material
+    material = django_filters.NumberFilter(field_name="items__material", distinct=True)
+
+    class Meta:
+        model = MaterialLoan
+        fields = ("status", "material")
 
 
 class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
@@ -33,13 +44,15 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
 
     serializer_class = MaterialLoanSerializer
     permission_classes = (permissions.IsAuthenticated,)
-    filterset_fields = ("status", "material")
+    filterset_class = MaterialLoanFilter
 
     def get_queryset(self) -> QuerySet[MaterialLoan]:
         if getattr(self, "swagger_fake_view", False):
             return MaterialLoan.objects.none()
             
-        base_queryset = MaterialLoan.objects.select_related("requested_by__profile__carrera", "approved_by__profile__carrera", "material").all()
+        base_queryset = MaterialLoan.objects.select_related(
+            "requested_by__profile__carrera", "approved_by__profile__carrera"
+        ).prefetch_related("items__material")
         request_user = self.request.user
         
         if request_user.is_anonymous:
@@ -57,28 +70,14 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer: MaterialLoanSerializer) -> None:
         with transaction.atomic():
-            # El stock se descuenta al crear la solicitud (queda Pendiente)
-            adjust_material_stock(
-                serializer.validated_data["material"].pk, -serializer.validated_data["quantity"]
-            )
-            serializer.save(requested_by=self.request.user)
+            # Crea el préstamo con sus renglones y descuenta el stock de todos (queda Pendiente)
+            loan = serializer.save(requested_by=self.request.user)
+            # Si se creó ya autorizado, el historial necesita los renglones recién creados
+            sync_loan_history(loan)
 
     def perform_update(self, serializer: MaterialLoanSerializer) -> None:
-        with transaction.atomic():
-            # serializer.instance tiene el objeto ANTES de guardar
-            instance = serializer.instance
-            old_material_id = instance.material_id
-            old_held = instance.quantity if instance.is_active else 0
-
-            updated = serializer.save()
-
-            new_held = updated.quantity if updated.is_active else 0
-            if updated.material_id == old_material_id:
-                if new_held != old_held:
-                    adjust_material_stock(updated.material_id, old_held - new_held)
-            else:
-                adjust_material_stock(old_material_id, old_held)
-                adjust_material_stock(updated.material_id, -new_held)
+        # Los renglones no cambian después de crear el préstamo, así que el stock tampoco
+        serializer.save()
 
     def perform_destroy(self, instance: MaterialLoan) -> None:
         request_user = self.request.user
@@ -90,9 +89,9 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
         
         with transaction.atomic():
             loan = MaterialLoan.objects.select_for_update().get(pk=instance.pk)
-            # Si el préstamo seguía activo (Pendiente o Autorizado), el material regresa al stock
+            # Si el préstamo seguía activo (Pendiente o Autorizado), los materiales regresan al stock
             if loan.is_active:
-                adjust_material_stock(loan.material_id, loan.quantity)
+                release_loan_items(loan)
             loan.delete()
 
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
@@ -141,8 +140,8 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
                     if loan.status != MaterialLoan.Status.AUTORIZADO:
                         return Response({"detail": f"El préstamo está {loan.status} y no puede finalizarse."}, status=400)
                     serializer.save(loan=loan, user=request.user)
-                    # El reporte de condición finaliza el préstamo y devuelve el material al stock
-                    adjust_material_stock(loan.material_id, loan.quantity)
+                    # El reporte de condición finaliza el préstamo y devuelve los materiales al stock
+                    release_loan_items(loan)
                     loan.has_condition_report = True
                     loan.status = MaterialLoan.Status.FINALIZADO
                     loan.save()
@@ -192,7 +191,7 @@ class MaterialLoanViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
                     {"detail": f"Solo se pueden {verb} préstamos pendientes. Estado actual: {loan.status}."},
                     status=400,
                 )
-            adjust_material_stock(loan.material_id, loan.quantity)
+            release_loan_items(loan)
             loan.status = new_status
             loan.save()
         return Response(MaterialLoanSerializer(loan, context=self.get_serializer_context()).data)

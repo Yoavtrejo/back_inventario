@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
 class MaterialLoan(models.Model):
@@ -23,12 +24,6 @@ class MaterialLoan(models.Model):
     # Estados en los que el material sigue descontado del stock
     ACTIVE_STATUSES = (Status.PENDIENTE, Status.AUTORIZADO)
 
-    material = models.ForeignKey(
-        'materials.Material',
-        on_delete=models.PROTECT,
-        related_name="loans",
-    )
-    quantity = models.PositiveIntegerField()
     loan_period_days = models.PositiveIntegerField()
     loan_date = models.DateField()
     return_date = models.DateField(blank=True, null=True)
@@ -63,7 +58,21 @@ class MaterialLoan(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
-        return f"{self.material.name if self.material else 'Unnamed'} ({self.quantity}) — {self.loan_date}"
+        return f"Préstamo {self.pk} — {self.loan_date}"
+
+
+class LoanItem(models.Model):
+    """Renglón de un préstamo: un material y la cantidad solicitada."""
+    loan = models.ForeignKey(MaterialLoan, on_delete=models.CASCADE, related_name="items")
+    material = models.ForeignKey('materials.Material', on_delete=models.PROTECT, related_name="loan_items")
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+
+    class Meta:
+        unique_together = ("loan", "material")
+        ordering = ("id",)
+
+    def __str__(self) -> str:
+        return f"{self.quantity} × {self.material.name}"
 
 class ConditionReport(models.Model):
     """Reporte de condición asociado a un préstamo de material.

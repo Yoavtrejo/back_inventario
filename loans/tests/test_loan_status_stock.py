@@ -42,8 +42,7 @@ class LoanStatusStockTests(APITestCase):
         response = self.client.post(
             reverse("material-loan-list"),
             data={
-                "material": self.material.id,
-                "quantity": quantity,
+                "items": [{"material": self.material.id, "quantity": quantity}],
                 "loan_period_days": 3,
                 "loan_date": dt.date.today().isoformat(),
                 "return_date": (dt.date.today() + dt.timedelta(days=3)).isoformat(),
@@ -149,19 +148,18 @@ class LoanStatusStockTests(APITestCase):
         self.client.delete(reverse("material-loan-detail", kwargs={"pk": loan.pk}))
         self.assertEqual(self.stock(), 3)
 
-    def test_quantity_update_adjusts_stock_and_never_goes_negative(self) -> None:
+    def test_requester_cannot_change_items(self) -> None:
         loan = self.create_loan(quantity=1)
-        url = reverse("material-loan-detail", kwargs={"pk": loan.pk})
         self.client.force_authenticate(user=self.requester)
-        self.assertEqual(
-            self.client.patch(url, data={"quantity": 3}, format="json").status_code, status.HTTP_200_OK
+        response = self.client.patch(
+            reverse("material-loan-detail", kwargs={"pk": loan.pk}),
+            data={"items": [{"material": self.material.id, "quantity": 3}]},
+            format="json",
         )
-        self.assertEqual(self.stock(), 0)
-        self.assertEqual(
-            self.client.patch(url, data={"quantity": 4}, format="json").status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-        self.assertEqual(self.stock(), 0)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["message"], "Para cambiar los materiales cancela la solicitud y crea una nueva")
+        self.assertEqual(self.stock(), 2)
+        self.assertEqual(loan.items.get().quantity, 1)
 
     def test_closed_loan_cannot_be_modified(self) -> None:
         loan = self.create_loan(quantity=1)
