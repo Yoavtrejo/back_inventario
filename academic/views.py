@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Avg, Q
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -101,6 +102,10 @@ class ClassGroupViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
         group.students.add(request.user)
         return Response({'detail': 'Te has unido al grupo exitosamente.'}, status=status.HTTP_200_OK)
 
+    @extend_schema(parameters=[
+        OpenApiParameter('partial', int, OpenApiParameter.PATH, description='Número de parcial'),
+        OpenApiParameter('student_id', int, description='Alumno (por defecto, el usuario actual)'),
+    ])
     @action(detail=True, methods=['get'], url_path='grades/(?P<partial>[^/.]+)')
     def get_grades(self, request, pk=None, partial=None):
         """

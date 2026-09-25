@@ -102,6 +102,12 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Gestión de laborario de redes',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    # Documentación solo para administradores: inicia sesión en /admin/ y abre /api/docs/
+    'SERVE_PERMISSIONS': ['core.permissions.IsSuperUser'],
+    'SERVE_AUTHENTICATION': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
     # Esto es clave para que Swagger muestre el botón de "Authorize" para el Token JWT
     'COMPONENT_SPLIT_PATCH': True,
     'SECURITY': [

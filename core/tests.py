@@ -1,5 +1,5 @@
 from django.core.exceptions import ImproperlyConfigured
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from core.security import INSECURE_SECRET_KEY, check_secret_key, env_list
 
@@ -77,3 +77,22 @@ class ProtectedFileTests(SimpleTestCase):
 
     def test_media_is_not_served_directly(self) -> None:
         self.assertEqual(self.get(f"/media/{self.pdf}").status_code, 404)
+
+
+class ApiDocsPermissionTests(TestCase):
+    def test_docs_and_schema_only_for_superusers(self) -> None:
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        docente = User.objects.create_user(username="docente", password="x", is_staff=True)
+        admin = User.objects.create_superuser(username="admin", email="a@example.com", password="x")
+        urls = ("/api/schema/", "/api/docs/")
+
+        for url in urls:
+            self.assertIn(self.client.get(url).status_code, (401, 403))
+        self.client.force_login(docente)
+        for url in urls:
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(admin)
+        for url in urls:
+            self.assertEqual(self.client.get(url).status_code, 200)
