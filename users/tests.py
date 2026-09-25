@@ -306,3 +306,30 @@ class PasswordResetTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("Vieja#2026x"))
+
+
+class LoginThrottleTests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        User.objects.create_user(username="victima", password="Correcta#2026")
+        User.objects.create_user(username="otro", password="Otro#2026x")
+        self.url = reverse("token_obtain_pair")
+
+    def login(self, username, password):
+        return self.client.post(self.url, data={"username": username, "password": password}, format="json")
+
+    def test_brute_force_on_one_account_is_throttled(self) -> None:
+        for _ in range(10):
+            self.assertEqual(self.login("victima", "mala").status_code, status.HTTP_401_UNAUTHORIZED)
+        response = self.login("VICTIMA", "Correcta#2026")
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertIn("detail", response.data)
+        # Otra cuenta desde la misma IP sigue pudiendo entrar
+        response = self.login("otro", "Otro#2026x")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
+    def test_login_is_throttled_per_ip(self) -> None:
+        for i in range(60):
+            self.login(f"usuario{i}", "mala")
+        self.assertEqual(self.login("otro", "Otro#2026x").status_code, status.HTTP_429_TOO_MANY_REQUESTS)

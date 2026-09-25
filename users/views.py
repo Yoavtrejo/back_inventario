@@ -4,6 +4,8 @@ from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenObtainPairView
+from core.throttling import LoginIPThrottle, LoginUsernameThrottle
 from rest_framework import filters, viewsets, permissions, generics, serializers
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema
@@ -111,3 +113,8 @@ class PasswordResetConfirmView(WrappedStandardApiMixin, generics.GenericAPIView)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({'detail': 'Tu contraseña se actualizó. Ya puedes iniciar sesión.'})
+
+
+class LoginView(TokenObtainPairView):
+    """Login JWT con límite de intentos por IP y por usuario."""
+    throttle_classes = [LoginIPThrottle, LoginUsernameThrottle]

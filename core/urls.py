@@ -3,10 +3,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from users.views import (UserViewSet, UserProfileView, RegisterView, CarreraViewSet,
-                         PasswordResetRequestView, PasswordResetConfirmView)
+                         PasswordResetRequestView, PasswordResetConfirmView, LoginView)
 from loans.views import MaterialLoanViewSet,ConditionReportListCreateView
 from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
@@ -48,7 +48,7 @@ urlpatterns = [
     path('api/password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     
     # Autenticación JWT
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/', LoginView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     # Documentación con drf-spectacular
