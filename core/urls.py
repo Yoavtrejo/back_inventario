@@ -11,7 +11,7 @@ from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
 from history.views import LoanHistoryViewSet
 from resources.views import ResourceViewSet
-from academic.views import (TermViewSet, SubjectViewSet, ClassGroupViewSet, 
+from academic.views import (CalendarEventViewSet, TermViewSet, SubjectViewSet, ClassGroupViewSet, 
                             ActivityViewSet, WorkTeamViewSet, SubmissionViewSet)
 
 
@@ -24,6 +24,7 @@ router.register(r'islas', IslaViewSet, basename='isla')
 router.register(r'reservaciones', ReservacionViewSet, basename='reservacion')
 router.register(r'history', LoanHistoryViewSet, basename='history')
 router.register(r'academic/terms', TermViewSet, basename='term')
+router.register(r'calendar-events', CalendarEventViewSet, basename='calendar-event')
 router.register(r'academic/subjects', SubjectViewSet, basename='subject')
 router.register(r'academic/classgroups', ClassGroupViewSet, basename='classgroup')
 router.register(r'academic/activities', ActivityViewSet, basename='activity')

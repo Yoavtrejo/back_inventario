@@ -1,10 +1,27 @@
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 
 class Term(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    # Solo un cuatrimestre activo a la vez (ver save y la restricción única)
+    is_active = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['is_active'], condition=models.Q(is_active=True), name='unique_active_term'
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.is_active:
+                Term.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
+            super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
@@ -87,3 +104,30 @@ class NotificationLog(models.Model):
 
     def __str__(self):
         return f"{self.kind} - {self.user.username} - {self.activity.title}"
+
+
+class CalendarEvent(models.Model):
+    """Evento del calendario académico publicado por el administrador."""
+
+    class Kind(models.TextChoices):
+        FESTIVO = 'festivo', 'Festivo'
+        EXAMENES = 'examenes', 'Exámenes'
+        EVENTO = 'evento', 'Evento'
+
+    title = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    start_date = models.DateField()
+    # null = evento de un solo día
+    end_date = models.DateField(null=True, blank=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.EVENTO)
+    term = models.ForeignKey(Term, on_delete=models.SET_NULL, null=True, blank=True, related_name='calendar_events')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='calendar_events'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['start_date', 'id']
+
+    def __str__(self):
+        return f"{self.title} ({self.start_date})"

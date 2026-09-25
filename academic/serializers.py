@@ -3,14 +3,23 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from core.files import ProtectedFilesMixin
 from users.serializers import UserProfileInfoMixin
-from .models import Term, Subject, ClassGroup, Activity, WorkTeam, Submission
+from .models import Term, Subject, ClassGroup, Activity, WorkTeam, Submission, CalendarEvent
 
 User = get_user_model()
 
 class TermSerializer(serializers.ModelSerializer):
     class Meta:
         model = Term
-        fields = '__all__'
+        fields = ('id', 'name', 'description', 'start_date', 'end_date', 'is_active')
+        # Sin el validador de unique_active_term: al activar uno, Term.save desactiva el anterior
+        extra_kwargs = {'is_active': {'validators': []}}
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+        if start and end and end <= start:
+            raise serializers.ValidationError({'end_date': 'La fecha de fin debe ser posterior a la de inicio.'})
+        return attrs
 
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
@@ -123,3 +132,17 @@ class SubmissionFileSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'student_file': {'required': True, 'allow_null': False},
         }
+
+
+class CalendarEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CalendarEvent
+        fields = ('id', 'title', 'description', 'start_date', 'end_date', 'kind', 'term', 'created_at')
+        read_only_fields = ('id', 'created_at')
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+        if start and end and end < start:
+            raise serializers.ValidationError({'end_date': 'La fecha de fin no puede ser anterior a la de inicio.'})
+        return attrs

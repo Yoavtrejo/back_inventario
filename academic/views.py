@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.db import transaction
 from django.db.models import Avg, Q
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -5,11 +7,12 @@ from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from .models import Term, Subject, ClassGroup, Activity, WorkTeam, Submission
-from .serializers import (TermSerializer, SubjectSerializer, ClassGroupSerializer,
+from .models import Term, Subject, ClassGroup, Activity, WorkTeam, Submission, CalendarEvent
+from .serializers import (CalendarEventSerializer, TermSerializer, SubjectSerializer, ClassGroupSerializer,
                           ActivitySerializer, WorkTeamSerializer, SubmissionSerializer,
                           SubmissionGradeSerializer, SubmissionFileSerializer)
 from core.json_api_mixin import WrappedStandardApiMixin
+from core.permissions import IsSuperUserOrReadOnly
 from .notifications import notify_submission_status_change
 
 # Roles: admin = is_superuser, docente = is_staff, alumno = ninguno de los dos.
@@ -40,14 +43,58 @@ class IsTeacherOrReadOnly(permissions.BasePermission):
         return request.user and (request.user.is_staff or request.user.is_superuser)
 
 class TermViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
-    queryset = Term.objects.all()
+    """Cuatrimestres. Lectura: autenticados. Escritura: solo admin."""
+    queryset = Term.objects.all().order_by('-start_date', '-id')
     serializer_class = TermSerializer
-    permission_classes = [IsTeacherOrReadOnly]
+    permission_classes = [IsSuperUserOrReadOnly]
 
 class SubjectViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
+    """Materias. Lectura: autenticados. Escritura: solo admin."""
     queryset = Subject.objects.all()
     serializer_class = SubjectSerializer
-    permission_classes = [IsTeacherOrReadOnly]
+    permission_classes = [IsSuperUserOrReadOnly]
+
+class CalendarEventViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
+    """
+    Eventos del calendario académico. Lectura: autenticados. Escritura: solo admin.
+    ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD: eventos que se traslapan con el rango.
+    """
+    serializer_class = CalendarEventSerializer
+    permission_classes = [IsSuperUserOrReadOnly]
+
+    def get_queryset(self):
+        queryset = CalendarEvent.objects.all()
+        if self.action != 'list':
+            return queryset
+        desde = self._date_param('desde')
+        hasta = self._date_param('hasta')
+        if desde and hasta and hasta < desde:
+            raise serializers.ValidationError({'hasta': 'Debe ser igual o posterior a desde.'})
+        if hasta:
+            queryset = queryset.filter(start_date__lte=hasta)
+        if desde:
+            # Un evento sin end_date dura solo su start_date
+            queryset = queryset.filter(Q(end_date__gte=desde) | Q(end_date__isnull=True, start_date__gte=desde))
+        return queryset
+
+    def _date_param(self, name):
+        value = self.request.query_params.get(name)
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            raise serializers.ValidationError({name: 'Formato YYYY-MM-DD.'})
+
+    @extend_schema(parameters=[
+        OpenApiParameter('desde', str, description='YYYY-MM-DD'),
+        OpenApiParameter('hasta', str, description='YYYY-MM-DD'),
+    ])
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 class ClassGroupViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
     """
