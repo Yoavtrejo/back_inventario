@@ -9,6 +9,7 @@ from typing import Any
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from core.files import ProtectedFilesMixin
 from materials.models import Material
 from users.serializers import UserProfileInfoMixin
 from .models import MaterialLoan, ConditionReport
@@ -115,7 +116,7 @@ class MaterialLoanSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
-class ConditionReportSerializer(serializers.ModelSerializer):
+class ConditionReportSerializer(ProtectedFilesMixin, serializers.ModelSerializer):
     """Serializer for the material condition report."""
 
     user = LoanActorUserSerializer(read_only=True)

@@ -183,6 +183,8 @@ STATIC_URL = 'static/'
 # Media files (Uploaded by users)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Los archivos se descargan por /api/files/ con enlaces firmados que vencen en este tiempo (segundos)
+FILE_URL_MAX_AGE = int(os.getenv('FILE_URL_MAX_AGE', '3600'))
 
 CORS_ALLOWED_ORIGINS = env_list(os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000'))
 CSRF_TRUSTED_ORIGINS = env_list(os.getenv('CSRF_TRUSTED_ORIGINS', ''))

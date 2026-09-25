@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from core.files import ProtectedFilesMixin
 from users.serializers import UserProfileInfoMixin
 from .models import Term, Subject, ClassGroup, Activity, WorkTeam, Submission
 
@@ -44,7 +45,7 @@ class ClassGroupSerializer(serializers.ModelSerializer):
             return []
         return GroupStudentSerializer(obj.students.all(), many=True).data
 
-class ActivitySerializer(serializers.ModelSerializer):
+class ActivitySerializer(ProtectedFilesMixin, serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = '__all__'
@@ -89,7 +90,7 @@ class WorkTeamSerializer(serializers.ModelSerializer):
             )
         return attrs
 
-class SubmissionSerializer(serializers.ModelSerializer):
+class SubmissionSerializer(ProtectedFilesMixin, serializers.ModelSerializer):
     # Las entregas tardías se aceptan, solo se marcan
     is_late = serializers.SerializerMethodField()
 

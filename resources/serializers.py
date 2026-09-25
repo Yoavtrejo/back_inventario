@@ -1,9 +1,11 @@
 from rest_framework import serializers
 
+from core.files import ProtectedFilesMixin
+
 from .models import Resource
 
 
-class ResourceSerializer(serializers.ModelSerializer):
+class ResourceSerializer(ProtectedFilesMixin, serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
 
     class Meta:

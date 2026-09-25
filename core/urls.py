@@ -1,7 +1,6 @@
 from django.contrib import admin  # <--- No olvides este import
 from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
+from core.files import protected_file
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -55,7 +54,7 @@ urlpatterns = [
     # Documentación con drf-spectacular
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Descarga de archivos subidos con enlace firmado (MEDIA_ROOT no se sirve públicamente)
+    path('api/files/<str:token>/<str:filename>', protected_file, name='protected-file'),
+]

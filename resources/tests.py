@@ -29,7 +29,11 @@ class ResourceApiTests(APITestCase):
         response = self.create(self.docente, file=pdf)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.data["data"]
-        self.assertTrue(data["file"].startswith("http://testserver/media/resources/"))
+        self.assertTrue(data["file"].startswith("http://testserver/api/files/"))
+        self.assertTrue(data["file"].endswith("/guia.pdf"))
+        download = self.client.get(data["file"])
+        self.assertEqual(download.status_code, status.HTTP_200_OK)
+        self.assertEqual(b"".join(download.streaming_content), b"%PDF-1.4")
         self.assertEqual(data["created_by"], self.docente.id)
         for field in ("id", "title", "description", "created_at"):
             self.assertIn(field, data)
