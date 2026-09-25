@@ -84,3 +84,16 @@ systemctl --user enable --now sidered-recordatorios.timer
 
 Los correos por cambio de estado de una entrega ("En revisión" y "Calificado") se envían
 automáticamente al actualizarla; no requieren el command.
+
+## Sesiones (JWT)
+
+- `POST /api/token/` devuelve `access` (60 min) y `refresh` (1 día). Límite: 10 intentos por minuto por usuario y 60 por IP.
+- `POST /api/token/refresh/` devuelve un `access` **y un `refresh` nuevos**; el refresh usado queda invalidado.
+- `POST /api/logout/` con `{"refresh": "..."}` invalida la sesión.
+- Restablecer la contraseña cierra todas las sesiones de la cuenta.
+
+Limpia periódicamente los tokens vencidos (por ejemplo, una vez al día):
+
+```bash
+python manage.py flushexpiredtokens
+```

@@ -4,7 +4,7 @@ from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenBlacklistView, TokenObtainPairView
 from core.throttling import LoginIPThrottle, LoginUsernameThrottle
 from rest_framework import filters, viewsets, permissions, generics, serializers
 from django.contrib.auth import get_user_model
@@ -118,3 +118,7 @@ class PasswordResetConfirmView(WrappedStandardApiMixin, generics.GenericAPIView)
 class LoginView(TokenObtainPairView):
     """Login JWT con límite de intentos por IP y por usuario."""
     throttle_classes = [LoginIPThrottle, LoginUsernameThrottle]
+
+
+class LogoutView(WrappedStandardApiMixin, TokenBlacklistView):
+    """Cierra la sesión invalidando el refresh token recibido: {"refresh": "..."}."""

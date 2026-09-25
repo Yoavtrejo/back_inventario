@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from users.views import (UserViewSet, UserProfileView, RegisterView, CarreraViewSet,
-                         PasswordResetRequestView, PasswordResetConfirmView, LoginView)
+                         PasswordResetRequestView, PasswordResetConfirmView, LoginView, LogoutView)
 from loans.views import MaterialLoanViewSet,ConditionReportListCreateView
 from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
@@ -50,6 +50,7 @@ urlpatterns = [
     # Autenticación JWT
     path('api/token/', LoginView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/logout/', LogoutView.as_view(), name='logout'),
     
     # Documentación con drf-spectacular
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

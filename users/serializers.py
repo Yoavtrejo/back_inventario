@@ -7,10 +7,18 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+
 from .models import Carrera, UserProfile
 
 User = get_user_model()
 
+
+
+def revoke_refresh_tokens(user):
+    """Invalida todos los refresh tokens del usuario (cierra sus sesiones)."""
+    for token in OutstandingToken.objects.filter(user=user, blacklistedtoken__isnull=True):
+        BlacklistedToken.objects.get_or_create(token=token)
 
 class UserProfileInfoMixin(serializers.Serializer):
     """Matrícula y carrera (solo lectura); null si el usuario no tiene perfil."""
@@ -177,4 +185,5 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         # Cambiar el hash invalida el token automáticamente
         user.set_password(self.validated_data['password'])
         user.save(update_fields=['password'])
+        revoke_refresh_tokens(user)
         return user

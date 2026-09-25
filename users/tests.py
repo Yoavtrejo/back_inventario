@@ -333,3 +333,55 @@ class LoginThrottleTests(APITestCase):
         for i in range(60):
             self.login(f"usuario{i}", "mala")
         self.assertEqual(self.login("otro", "Otro#2026x").status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+class TokenRotationTests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        self.user = User.objects.create_user(username="alumno", email="alumno@example.com", password="Clave#2026x")
+
+    def login(self):
+        response = self.client.post(
+            reverse("token_obtain_pair"), data={"username": "alumno", "password": "Clave#2026x"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["refresh"]
+
+    def refresh(self, token):
+        return self.client.post(reverse("token_refresh"), data={"refresh": token}, format="json")
+
+    def test_refresh_rotates_and_old_token_is_rejected(self) -> None:
+        old = self.login()
+        response = self.refresh(old)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        new = response.data["refresh"]
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.refresh(old).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.refresh(new).status_code, status.HTTP_200_OK)
+
+    def test_logout_blacklists_refresh(self) -> None:
+        token = self.login()
+        response = self.client.post(reverse("logout"), data={"refresh": token}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(self.refresh(token).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_password_reset_closes_existing_sessions(self) -> None:
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        token = self.login()
+        self.user.refresh_from_db()  # el login actualiza last_login, que forma parte del token
+        response = self.client.post(
+            reverse("password-reset-confirm"),
+            data={
+                "uid": urlsafe_base64_encode(force_bytes(self.user.pk)),
+                "token": default_token_generator.make_token(self.user),
+                "password": "Nueva#2026x", "password_confirm": "Nueva#2026x",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.refresh(token).status_code, status.HTTP_401_UNAUTHORIZED)
