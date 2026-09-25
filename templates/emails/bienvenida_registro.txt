@@ -1,0 +1,9 @@
+{% autoescape off %}
+¡Bienvenido, {{ nombre }}!
+
+Tu cuenta quedó creada. Inicia sesión con tu matrícula {{ matricula }} y la contraseña que elegiste al registrarte.
+
+Iniciar sesión: {{ login_url }}
+
+¿Olvidaste tu contraseña? Recupérala en {{ recuperar_url }}
+{% endautoescape %}

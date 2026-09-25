@@ -1,0 +1,14 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h2>Hola, {{ nombre }}</h2>
+<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta <strong>{{ username }}</strong>.</p>
+<p>El enlace vence en 1 hora. Si no lo pediste, ignora este correo.</p>
+{% endblock %}
+{% block button %}
+<div class="btn-container">
+    <a href="{{ reset_url }}" class="btn">Restablecer contraseña</a>
+</div>
+<p style="font-size: 12px; color: #94A3B8; word-break: break-all; margin-top: 25px;">
+    Si el botón no funciona, copia este enlace en tu navegador: {{ reset_url }}
+</p>
+{% endblock %}

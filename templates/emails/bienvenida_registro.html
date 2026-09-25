@@ -1,0 +1,13 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h2>¡Bienvenido, {{ nombre }}!</h2>
+<p>Tu cuenta quedó creada. Inicia sesión con tu matrícula <strong>{{ matricula }}</strong> y la contraseña que elegiste al registrarte.</p>
+{% endblock %}
+{% block button %}
+<div class="btn-container">
+    <a href="{{ login_url }}" class="btn">Iniciar sesión</a>
+</div>
+<p style="font-size: 13px; color: #64748B; text-align: center; margin-top: 25px;">
+    ¿Olvidaste tu contraseña? Recupérala en <a href="{{ recuperar_url }}">{{ recuperar_url }}</a>
+</p>
+{% endblock %}

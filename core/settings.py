@@ -78,6 +78,9 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_RATES': {
+        'password_reset': '5/hour',
+    },
 }
 
 SPECTACULAR_SETTINGS = {
@@ -177,6 +180,9 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f'SIDERED <{EMAIL_HOST_USER}>')
+
+# Vigencia del enlace de recuperación de contraseña (segundos)
+PASSWORD_RESET_TIMEOUT = 3600
 
 # URL del frontend, usada en los enlaces de los correos
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')

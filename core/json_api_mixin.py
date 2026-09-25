@@ -25,7 +25,12 @@ def _flatten_validation_message(error_payload: Any) -> str:
         segments: list[str] = []
         for field_name, nested in error_payload.items():
             nested_text = _flatten_validation_message(nested)
-            if nested_text:
+            if not nested_text:
+                continue
+            # Los errores generales (no ligados a un campo) se muestran sin prefijo
+            if field_name == "non_field_errors":
+                segments.append(nested_text)
+            else:
                 segments.append(f"{field_name}: {nested_text}")
         return "; ".join(segments)
     return str(error_payload)

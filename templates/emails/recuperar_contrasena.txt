@@ -1,0 +1,9 @@
+{% autoescape off %}
+Hola, {{ nombre }}
+
+Recibimos una solicitud para restablecer la contraseña de tu cuenta {{ username }}.
+
+Restablece tu contraseña aquí: {{ reset_url }}
+
+El enlace vence en 1 hora. Si no lo pediste, ignora este correo.
+{% endautoescape %}

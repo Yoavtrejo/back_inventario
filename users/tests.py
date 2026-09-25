@@ -1,4 +1,9 @@
+import re
+
 from django.contrib.auth import get_user_model
+from django.core import mail
+from django.core.cache import cache
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -152,3 +157,152 @@ class RegisterApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(response.data["matricula"])
         self.assertIsNone(response.data["carrera"])
+
+
+class RegisterEmailTests(APITestCase):
+    def setUp(self) -> None:
+        from users.models import Carrera
+
+        self.payload = {
+            "first_name": "Luis", "last_name": "Pérez", "matricula": "2230001",
+            "email": "luis@example.com", "password": "Segura#2026", "password_confirm": "Segura#2026",
+            "carrera": Carrera.objects.create(nombre="ISC").id,
+        }
+
+    @override_settings(FRONTEND_URL="http://front.test")
+    def test_register_email_has_matricula_and_no_password(self) -> None:
+        response = self.client.post(reverse("register"), data=self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        html = message.alternatives[0][0]
+        for content in (message.body, html):
+            self.assertIn("2230001", content)
+            self.assertIn("la contraseña que elegiste al registrarte", content)
+            self.assertIn("http://front.test/login", content)
+            self.assertIn("http://front.test/recuperar", content)
+            self.assertNotIn("Segura#2026", content)
+
+    def test_admin_created_user_email_is_unchanged(self) -> None:
+        admin = User.objects.create_superuser(username="admin", email="a@example.com", password="x")
+        self.client.force_authenticate(user=admin)
+        self.client.post(
+            reverse("user-list"),
+            data={"username": "nuevo", "email": "nuevo@example.com", "password": "Temporal#123"},
+            format="json",
+        )
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertIn("Contraseña temporal", html)
+        self.assertIn("Temporal#123", html)
+
+
+class PasswordResetTests(APITestCase):
+    MESSAGE = "Si la cuenta existe, enviamos un enlace de recuperación al correo registrado."
+
+    def setUp(self) -> None:
+        cache.clear()  # el throttle guarda su estado en la caché
+        self.user = User.objects.create_user(
+            username="2230001", email="Luis@Example.com", password="Vieja#2026x", first_name="Luis"
+        )
+        self.url = reverse("password-reset")
+        self.confirm_url = reverse("password-reset-confirm")
+
+    def request_reset(self, identificador):
+        response = self.client.post(self.url, data={"identificador": identificador}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"success": True, "data": {"detail": self.MESSAGE}})
+        return response
+
+    def link_params(self, message):
+        match = re.search(r"http://front\.test/restablecer\?uid=([\w-]+)&token=([\w-]+)", message.body)
+        self.assertIsNotNone(match)
+        return {"uid": match.group(1), "token": match.group(2)}
+
+    @override_settings(FRONTEND_URL="http://front.test")
+    def test_reset_by_matricula_and_email_sends_link(self) -> None:
+        self.request_reset("2230001")
+        self.request_reset("luis@example.com")
+        self.assertEqual(len(mail.outbox), 2)
+        message = mail.outbox[0]
+        self.assertEqual(message.subject, "SIDERED · Recupera tu contraseña")
+        self.assertEqual(message.to, [self.user.email])
+        self.assertIn("vence en 1 hora", message.body)
+        params = self.link_params(message)
+        self.assertIn(params["token"], message.alternatives[0][0])
+
+    def test_unknown_or_inactive_account_gets_same_response_and_no_email(self) -> None:
+        User.objects.create_user(username="inactivo", email="in@example.com", password="x", is_active=False)
+        self.request_reset("noexiste")
+        self.request_reset("inactivo")
+        self.assertEqual(mail.outbox, [])
+
+    def test_missing_identificador_is_400(self) -> None:
+        response = self.client.post(self.url, data={}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error_code"], "VALIDATION_ERROR")
+
+    def test_reset_request_is_throttled(self) -> None:
+        for _ in range(5):
+            self.request_reset("noexiste")
+        response = self.client.post(self.url, data={"identificador": "noexiste"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertFalse(response.data["success"])
+        self.assertTrue(response.data["message"])
+
+    @override_settings(FRONTEND_URL="http://front.test")
+    def test_confirm_changes_password_and_token_cannot_be_reused(self) -> None:
+        self.request_reset("2230001")
+        params = self.link_params(mail.outbox[0])
+        payload = {**params, "password": "Nueva#2026x", "password_confirm": "Nueva#2026x"}
+
+        response = self.client.post(self.confirm_url, data=payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"]["detail"], "Tu contraseña se actualizó. Ya puedes iniciar sesión.")
+        login = self.client.post(
+            reverse("token_obtain_pair"), data={"username": "2230001", "password": "Nueva#2026x"}, format="json"
+        )
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+
+        response = self.client.post(
+            self.confirm_url, data={**payload, "password": "Otra#2026xy", "password_confirm": "Otra#2026xy"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error_code"], "VALIDATION_ERROR")
+        self.assertEqual(response.data["message"], "El enlace no es válido o ya venció. Solicita uno nuevo.")
+
+    def valid_params(self):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        return {
+            "uid": urlsafe_base64_encode(force_bytes(self.user.pk)),
+            "token": default_token_generator.make_token(self.user),
+        }
+
+    def test_invalid_token_or_uid_is_400(self) -> None:
+        params = self.valid_params()
+        for bad in ({**params, "token": "abc-123"}, {**params, "uid": "@@@"}, {**params, "uid": "OTk5OTk"}):
+            response = self.client.post(
+                self.confirm_url, data={**bad, "password": "Nueva#2026x", "password_confirm": "Nueva#2026x"},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response.data["message"], "El enlace no es válido o ya venció. Solicita uno nuevo.")
+
+    def test_mismatched_and_weak_passwords_are_400(self) -> None:
+        params = self.valid_params()
+        response = self.client.post(
+            self.confirm_url, data={**params, "password": "Nueva#2026x", "password_confirm": "Otra#2026x"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["message"], "Las contraseñas no coinciden.")
+
+        response = self.client.post(
+            self.confirm_url, data={**params, "password": "123", "password_confirm": "123"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Vieja#2026x"))

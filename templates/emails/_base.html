@@ -94,9 +94,11 @@
         </div>
         <div class="content">
             {% block content %}{% endblock %}
+            {% block button %}
             <div class="btn-container">
                 <a href="{{ activities_url }}" class="btn">Ver mis actividades</a>
             </div>
+            {% endblock %}
         </div>
         <div class="footer">
             Este es un correo automático de SIDERED, por favor no respondas a este mensaje.

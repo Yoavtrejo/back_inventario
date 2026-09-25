@@ -5,7 +5,8 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from users.views import UserViewSet, UserProfileView, RegisterView, CarreraViewSet
+from users.views import (UserViewSet, UserProfileView, RegisterView, CarreraViewSet,
+                         PasswordResetRequestView, PasswordResetConfirmView)
 from loans.views import MaterialLoanViewSet,ConditionReportListCreateView
 from materials.views import MaterialViewSet
 from isla_control.views import IslaViewSet, ReservacionViewSet, HorarioBloqueadoViewSet
@@ -43,6 +44,8 @@ urlpatterns = [
     # Perfil del usuario autenticado
     path('api/profile/', UserProfileView.as_view(), name='user-profile'),
     path('api/register/', RegisterView.as_view(), name='register'),
+    path('api/password-reset/', PasswordResetRequestView.as_view(), name='password-reset'),
+    path('api/password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     
     # Autenticación JWT
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
