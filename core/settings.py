@@ -15,6 +15,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from core.security import INSECURE_SECRET_KEY, check_secret_key, env_list
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,12 +28,15 @@ load_dotenv(BASE_DIR / '.env')
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-zhljik@=dqirx#b($)zp+!^=n@7+m-6dzk++fb831h-f9olmcj')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', INSECURE_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes')
+# Apagado por defecto: en desarrollo se activa con DJANGO_DEBUG=True en .env
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+check_secret_key(SECRET_KEY, DEBUG)
+
+ALLOWED_HOSTS = env_list(os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1'))
 
 
 # Application definition
@@ -120,6 +125,8 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD', 'hola12345'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
+        # Ej. DB_SSLMODE=require para una base de datos remota
+        'OPTIONS': {'sslmode': os.getenv('DB_SSLMODE')} if os.getenv('DB_SSLMODE') else {},
     }
 }
 
@@ -164,12 +171,16 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://192.168.100.8:3000",
-    "http://192.168.100.13:3000"
-]
+CORS_ALLOWED_ORIGINS = env_list(os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000'))
+CSRF_TRUSTED_ORIGINS = env_list(os.getenv('CSRF_TRUSTED_ORIGINS', ''))
+
+# HTTPS en producción (detrás de un proxy como Railway)
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() in ('1', 'true', 'yes')
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
 
 
 # Usa django.core.mail.backends.console.EmailBackend para ver los correos en consola
