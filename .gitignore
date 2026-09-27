@@ -9,6 +9,7 @@ venv/
 
 # Environment variables
 .env
+.cursorrules
 
 # SQLite
 *.sqlite3
@@ -16,7 +17,6 @@ venv/
 # IDE
 .vscode/
 .idea/
-
 
 
 # Archivos subidos por usuarios (no van al repositorio)
