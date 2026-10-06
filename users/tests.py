@@ -100,7 +100,7 @@ class RegisterApiTests(APITestCase):
         self.payload = {
             "first_name": "Luis", "last_name": "Pérez", "matricula": "2230001",
             "email": "luis@example.com", "password": "Segura#2026", "password_confirm": "Segura#2026",
-            "carrera": self.carrera.id,
+            "carrera": self.carrera.id, "cuatrimestre": 3, "grupo": 4,
         }
 
     def test_register_creates_alumno_with_profile(self) -> None:
@@ -148,7 +148,9 @@ class RegisterApiTests(APITestCase):
     def test_carreras_are_public(self) -> None:
         response = self.client.get(reverse("carrera-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["data"], [{"id": self.carrera.id, "nombre": "Ingeniería en Sistemas"}])
+        self.assertEqual(
+            response.data["data"], [{"id": self.carrera.id, "nombre": "Ingeniería en Sistemas", "clave": None}]
+        )
 
     def test_profile_fields_are_null_without_profile(self) -> None:
         user = User.objects.create_user(username="viejo", password="x")
@@ -166,7 +168,7 @@ class RegisterEmailTests(APITestCase):
         self.payload = {
             "first_name": "Luis", "last_name": "Pérez", "matricula": "2230001",
             "email": "luis@example.com", "password": "Segura#2026", "password_confirm": "Segura#2026",
-            "carrera": Carrera.objects.create(nombre="ISC").id,
+            "carrera": Carrera.objects.create(nombre="ISC").id, "cuatrimestre": 3, "grupo": 4,
         }
 
     @override_settings(FRONTEND_URL="http://front.test")

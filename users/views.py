@@ -1,6 +1,6 @@
 import logging
 
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -15,6 +15,7 @@ from .models import Carrera
 from .serializers import (UserSerializer, ProfileSerializer, RegisterSerializer, CarreraSerializer,
                           PasswordResetRequestSerializer, PasswordResetConfirmSerializer)
 from .utils import enviar_correo_bienvenida, enviar_correo_recuperacion
+from academic.enrollment import enroll_student
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,8 @@ class RegisterView(WrappedStandardApiMixin, generics.CreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
+        # Inscripción automática en los grupos de su cohorte del cuatrimestre activo
+        enroll_student(user)
         # Un fallo del correo no debe impedir el registro
         try:
             enviar_correo_bienvenida(user, origen='registro')
@@ -61,13 +64,29 @@ class RegisterView(WrappedStandardApiMixin, generics.CreateAPIView):
             logger.exception('No se pudo enviar el correo de bienvenida a %s', user.email)
 
 
-class CarreraViewSet(WrappedStandardApiMixin, viewsets.ReadOnlyModelViewSet):
-    """Catálogo de carreras para el formulario de registro (público)."""
+class ReadOnlyPublicOrSuperUser(permissions.BasePermission):
+    """Lectura pública (formulario de registro); escritura solo superusuario."""
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return bool(request.user and request.user.is_authenticated and request.user.is_superuser)
+
+
+class CarreraViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
+    """Catálogo de carreras: lectura pública, escritura solo admin."""
     queryset = Carrera.objects.all()
     serializer_class = CarreraSerializer
-    permission_classes = [permissions.AllowAny]
-    authentication_classes = []
+    permission_classes = [ReadOnlyPublicOrSuperUser]
     pagination_class = None
+
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise serializers.ValidationError({'non_field_errors': [
+                f'No se puede eliminar la carrera {instance.nombre}: tiene alumnos o grupos asociados.'
+            ]})
 
 
 class DetailResponseSerializer(serializers.Serializer):

@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.conf import settings
 
@@ -38,6 +39,17 @@ class ClassGroup(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='taught_groups', limit_choices_to={'is_staff': True})
     students = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='enrolled_groups', blank=True)
+    # Grupo escolar (opcional): si vienen los tres, el name es <clave><cuatrimestre><grupo> y
+    # los alumnos de esa cohorte se inscriben automáticamente (academic/enrollment.py)
+    carrera = models.ForeignKey(
+        'users.Carrera', on_delete=models.PROTECT, null=True, blank=True, related_name='class_groups'
+    )
+    cuatrimestre = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(9)]
+    )
+    grupo = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(6)]
+    )
     
     class Meta:
         unique_together = ('name', 'term', 'subject')

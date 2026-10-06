@@ -11,7 +11,8 @@ User = get_user_model()
 class AlumnoCompactSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'matricula', 'carrera')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'matricula', 'carrera',
+                  'cuatrimestre', 'grupo', 'grupo_escolar')
 
 
 class IslaSerializer(serializers.ModelSerializer):

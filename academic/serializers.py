@@ -29,21 +29,71 @@ class SubjectSerializer(serializers.ModelSerializer):
 class GroupStudentSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'matricula', 'carrera')
+        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'matricula', 'carrera',
+                  'cuatrimestre', 'grupo', 'grupo_escolar')
 
 class ClassGroupSerializer(serializers.ModelSerializer):
     term_name = serializers.CharField(source='term.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     teacher_name = serializers.CharField(source='teacher.username', read_only=True)
+    carrera_clave = serializers.CharField(source='carrera.clave', read_only=True, default=None)
+    students_count = serializers.SerializerMethodField()
     students_detail = serializers.SerializerMethodField()
+
+    COHORT_FIELDS = ('carrera', 'cuatrimestre', 'grupo')
 
     class Meta:
         model = ClassGroup
-        fields = ['id', 'name', 'term', 'term_name', 'subject', 'subject_name', 'teacher', 'teacher_name', 'students',
+        fields = ['id', 'name', 'term', 'term_name', 'subject', 'subject_name', 'teacher', 'teacher_name',
+                  'carrera', 'carrera_clave', 'cuatrimestre', 'grupo', 'students', 'students_count',
                   'students_detail']
         extra_kwargs = {
-            'students': {'required': False}
+            'students': {'required': False},
+            # Con carrera, cuatrimestre y grupo el name se arma solo; term por defecto = term activo
+            'name': {'required': False},
+            'term': {'required': False},
+            'teacher': {'required': False},
         }
+        # unique_together (name, term, subject) se valida en validate() con el name ya armado
+        validators = []
+
+    def validate(self, attrs):
+        instance = self.instance
+        cohort = {
+            field: attrs[field] if field in attrs else getattr(instance, field, None)
+            for field in self.COHORT_FIELDS
+        }
+        provided = [value is not None for value in cohort.values()]
+        if any(provided) and not all(provided):
+            raise serializers.ValidationError('Indica carrera, cuatrimestre y grupo juntos.')
+        if all(provided):
+            carrera = cohort['carrera']
+            if not carrera.clave:
+                raise serializers.ValidationError(
+                    f'La carrera {carrera.nombre} no tiene clave; pídele al administrador que la registre.'
+                )
+            attrs['name'] = f"{carrera.clave}{cohort['cuatrimestre']}{cohort['grupo']}"
+        elif not (attrs.get('name') or getattr(instance, 'name', None)):
+            raise serializers.ValidationError({'name': 'Indica el nombre o carrera, cuatrimestre y grupo.'})
+
+        if instance is None and 'term' not in attrs:
+            term = Term.objects.filter(is_active=True).first()
+            if term is None:
+                raise serializers.ValidationError({'term': 'No hay un cuatrimestre activo; indica term.'})
+            attrs['term'] = term
+
+        name = attrs.get('name', getattr(instance, 'name', None))
+        term = attrs.get('term', getattr(instance, 'term', None))
+        subject = attrs.get('subject', getattr(instance, 'subject', None))
+        duplicates = ClassGroup.objects.filter(name=name, term=term, subject=subject)
+        if instance is not None:
+            duplicates = duplicates.exclude(pk=instance.pk)
+        if subject is not None and duplicates.exists():
+            raise serializers.ValidationError(f'Ya existe el grupo {name} de {subject.name} en {term.name}.')
+        return attrs
+
+    def get_students_count(self, obj) -> int:
+        return len(obj.students.all())
 
     @extend_schema_field(GroupStudentSerializer(many=True))
     def get_students_detail(self, obj):

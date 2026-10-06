@@ -14,6 +14,7 @@ from .serializers import (CalendarEventSerializer, TermSerializer, SubjectSerial
 from core.json_api_mixin import WrappedStandardApiMixin
 from core.permissions import IsSuperUserOrReadOnly
 from .notifications import notify_submission_status_change
+from .enrollment import enroll_group_cohort, enroll_term
 
 # Roles: admin = is_superuser, docente = is_staff, alumno = ninguno de los dos.
 
@@ -43,10 +44,26 @@ class IsTeacherOrReadOnly(permissions.BasePermission):
         return request.user and (request.user.is_staff or request.user.is_superuser)
 
 class TermViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
-    """Cuatrimestres. Lectura: autenticados. Escritura: solo admin."""
+    """
+    Cuatrimestres. Lectura: autenticados. Escritura: solo admin.
+    Al activar un term se inscribe a los alumnos en los grupos de su cohorte de ese term.
+    """
     queryset = Term.objects.all().order_by('-start_date', '-id')
     serializer_class = TermSerializer
     permission_classes = [IsSuperUserOrReadOnly]
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            term = serializer.save()
+            if term.is_active:
+                enroll_term(term)
+
+    def perform_update(self, serializer):
+        was_active = serializer.instance.is_active
+        with transaction.atomic():
+            term = serializer.save()
+            if term.is_active and not was_active:
+                enroll_term(term)
 
 class SubjectViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
     """Materias. Lectura: autenticados. Escritura: solo admin."""
@@ -117,25 +134,39 @@ class ClassGroupViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
         queryset = ClassGroup.objects.select_related('term', 'subject', 'teacher').prefetch_related('students__profile__carrera')
         if self.action == 'join_group':
             return queryset
-        disponibles = self.request.query_params.get('disponibles', '').lower() in ('1', 'true')
+        params = self.request.query_params
+        if self.action == 'list':
+            # ?carrera=&cuatrimestre=&grupo=
+            for field in ('carrera', 'cuatrimestre', 'grupo'):
+                value = params.get(field)
+                if value:
+                    if not value.isdigit():
+                        raise serializers.ValidationError({field: 'Debe ser un número.'})
+                    queryset = queryset.filter(**{field: int(value)})
+        disponibles = params.get('disponibles', '').lower() in ('1', 'true')
         if self.action == 'list' and disponibles and is_alumno(user):
             return queryset.exclude(students=user)
         return visible_groups(user, queryset)
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_superuser:
-            serializer.save()
-        else:
-            serializer.save(teacher=user)
+        with transaction.atomic():
+            if user.is_superuser:
+                group = serializer.save(teacher=serializer.validated_data.get('teacher') or user)
+            else:
+                group = serializer.save(teacher=user)
+            # Inscribe a los alumnos de la cohorte (solo si es del term activo)
+            enroll_group_cohort(group)
 
     def perform_update(self, serializer):
         user = self.request.user
         check_can_manage_group(user, serializer.instance)
-        if user.is_superuser:
-            serializer.save()
-        else:
-            serializer.save(teacher=serializer.instance.teacher)
+        with transaction.atomic():
+            if user.is_superuser:
+                group = serializer.save()
+            else:
+                group = serializer.save(teacher=serializer.instance.teacher)
+            enroll_group_cohort(group)
 
     def perform_destroy(self, instance):
         check_can_manage_group(self.request.user, instance)

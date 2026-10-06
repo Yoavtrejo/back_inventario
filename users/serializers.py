@@ -9,7 +9,7 @@ from rest_framework import serializers
 
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from .models import Carrera, UserProfile
+from .models import Carrera, UserProfile, normalizar_clave
 
 User = get_user_model()
 
@@ -21,38 +21,123 @@ def revoke_refresh_tokens(user):
         BlacklistedToken.objects.get_or_create(token=token)
 
 class UserProfileInfoMixin(serializers.Serializer):
-    """Matrícula y carrera (solo lectura); null si el usuario no tiene perfil."""
+    """
+    Datos del perfil del alumno (solo lectura); null si no tiene perfil o falta el dato.
+    Cada serializer elige en Meta.fields cuáles expone.
+    """
     matricula = serializers.SerializerMethodField()
     carrera = serializers.SerializerMethodField()
+    carrera_id = serializers.SerializerMethodField()
+    carrera_clave = serializers.SerializerMethodField()
+    cuatrimestre = serializers.SerializerMethodField()
+    grupo = serializers.SerializerMethodField()
+    grupo_escolar = serializers.SerializerMethodField()
+
+    @staticmethod
+    def _profile(user):
+        return getattr(user, 'profile', None)
 
     def get_matricula(self, user) -> str | None:
-        profile = getattr(user, 'profile', None)
+        profile = self._profile(user)
         return profile.matricula if profile else None
 
     def get_carrera(self, user) -> str | None:
-        profile = getattr(user, 'profile', None)
+        profile = self._profile(user)
         return profile.carrera.nombre if profile and profile.carrera else None
+
+    def get_carrera_id(self, user) -> int | None:
+        profile = self._profile(user)
+        return profile.carrera_id if profile else None
+
+    def get_carrera_clave(self, user) -> str | None:
+        profile = self._profile(user)
+        return profile.carrera.clave if profile and profile.carrera else None
+
+    def get_cuatrimestre(self, user) -> int | None:
+        profile = self._profile(user)
+        return profile.cuatrimestre if profile else None
+
+    def get_grupo(self, user) -> int | None:
+        profile = self._profile(user)
+        return profile.grupo if profile else None
+
+    def get_grupo_escolar(self, user) -> str | None:
+        """Ej. 'ISC34'; null si falta la clave de la carrera, el cuatrimestre o el grupo."""
+        profile = self._profile(user)
+        if profile and profile.carrera and profile.carrera.clave and profile.cuatrimestre and profile.grupo:
+            return f"{profile.carrera.clave}{profile.cuatrimestre}{profile.grupo}"
+        return None
+
+
+PROFILE_INFO_FIELDS = ('matricula', 'carrera', 'carrera_id', 'carrera_clave', 'cuatrimestre', 'grupo', 'grupo_escolar')
+COHORT_KEYS = ('carrera', 'cuatrimestre', 'grupo')
+
+
+class CohortInputSerializer(serializers.Serializer):
+    """Entrada de carrera (id), cuatrimestre (1-9) y grupo (1-6) del perfil del alumno."""
+    carrera = serializers.PrimaryKeyRelatedField(queryset=Carrera.objects.all(), allow_null=True, required=False)
+    cuatrimestre = serializers.IntegerField(min_value=1, max_value=9, allow_null=True, required=False)
+    grupo = serializers.IntegerField(min_value=1, max_value=6, allow_null=True, required=False)
+
+
+def validated_cohort_input(initial_data):
+    """Valida solo las claves de cohorte presentes en la petición; {} si no viene ninguna."""
+    data = {key: initial_data[key] for key in COHORT_KEYS if key in initial_data}
+    if not data:
+        return {}
+    serializer = CohortInputSerializer(data=data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    return serializer.validated_data
+
+
+def save_cohort(user, cohort_data):
+    """Guarda la cohorte en el perfil (lo crea si falta). Devuelve (cohorte anterior, cohorte nueva)."""
+    profile = getattr(user, 'profile', None)
+    if profile is None:
+        profile = UserProfile.objects.create(user=user, matricula=user.username)
+        user.profile = profile
+    old_cohort = profile.cohorte
+    for key, value in cohort_data.items():
+        setattr(profile, key, value)
+    profile.save()
+    return old_cohort, profile.cohorte
 
 
 class UserSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id','username','email','first_name','last_name','is_staff','is_active', 'is_superuser', 'date_joined', 'password','last_login',
-                  'matricula', 'carrera')
+                  *PROFILE_INFO_FIELDS)
         extra_kwargs = {
                             'password': {'write_only': True, 'required': False},
                             'date_joined': {'read_only': True},
                             'last_login': {'read_only': True}
                         }
         
+    def validate(self, attrs):
+        # El admin puede fijar o cambiar carrera, cuatrimestre y grupo del alumno
+        attrs['_cohort'] = validated_cohort_input(self.initial_data)
+        return attrs
+
     def create(self, validated_data):
+        cohort_data = validated_data.pop('_cohort', {})
         user = User.objects.create_user(**validated_data)
+        if cohort_data:
+            save_cohort(user, cohort_data)
+            from academic.enrollment import enroll_student
+            enroll_student(user)
         return user
     
     def update(self, instance, validated_data):
+        cohort_data = validated_data.pop('_cohort', {})
         if 'password' in validated_data:
             instance.set_password(validated_data.pop('password'))
-        return super().update(instance, validated_data)
+        user = super().update(instance, validated_data)
+        if cohort_data:
+            old_cohort, new_cohort = save_cohort(user, cohort_data)
+            from academic.enrollment import move_student
+            move_student(user, old_cohort, new_cohort)
+        return user
 
 
 class ProfileSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
@@ -64,7 +149,7 @@ class ProfileSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active',
-                  'is_superuser', 'date_joined', 'last_login', 'password', 'matricula', 'carrera')
+                  'is_superuser', 'date_joined', 'last_login', 'password', *PROFILE_INFO_FIELDS)
         read_only_fields = ('id', 'username', 'is_staff', 'is_active', 'is_superuser',
                             'date_joined', 'last_login')
         extra_kwargs = {'password': {'write_only': True, 'required': False}}
@@ -78,17 +163,43 @@ class ProfileSerializer(UserProfileInfoMixin, serializers.ModelSerializer):
         validate_password(value, user=self.instance)
         return value
 
+    COHORT_LOCKED_MESSAGE = 'Para cambiar tu grupo pide ayuda al administrador.'
+
+    def validate(self, attrs):
+        # El alumno solo puede completar carrera, cuatrimestre y grupo cuando están vacíos
+        cohort_data = validated_cohort_input(self.initial_data)
+        profile = getattr(self.instance, 'profile', None)
+        for key in cohort_data:
+            if profile is not None and getattr(profile, key) is not None:
+                raise serializers.ValidationError(self.COHORT_LOCKED_MESSAGE)
+        attrs['_cohort'] = cohort_data
+        return attrs
+
     def update(self, instance, validated_data):
+        cohort_data = validated_data.pop('_cohort', {})
         password = validated_data.pop('password', None)
         if password:
             instance.set_password(password)
-        return super().update(instance, validated_data)
+        user = super().update(instance, validated_data)
+        if cohort_data:
+            save_cohort(user, cohort_data)
+            from academic.enrollment import enroll_student
+            enroll_student(user)
+        return user
 
 
 class CarreraSerializer(serializers.ModelSerializer):
     class Meta:
         model = Carrera
-        fields = ('id', 'nombre')
+        fields = ('id', 'nombre', 'clave')
+        # La unicidad de clave se valida ya normalizada (validate_clave)
+        extra_kwargs = {'clave': {'validators': []}}
+
+    def validate_clave(self, value):
+        value = normalizar_clave(value)
+        if value and Carrera.objects.filter(clave=value).exclude(pk=getattr(self.instance, 'pk', None)).exists():
+            raise serializers.ValidationError(f'La clave {value} ya está registrada.')
+        return value
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -102,6 +213,8 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
     password_confirm = serializers.CharField(write_only=True, style={'input_type': 'password'})
     carrera = serializers.PrimaryKeyRelatedField(queryset=Carrera.objects.all())
+    cuatrimestre = serializers.IntegerField(min_value=1, max_value=9)
+    grupo = serializers.IntegerField(min_value=1, max_value=6)
 
     def validate_matricula(self, value):
         value = value.strip()
@@ -142,6 +255,7 @@ class RegisterSerializer(serializers.Serializer):
                 )
                 UserProfile.objects.create(
                     user=user, matricula=validated_data['matricula'], carrera=validated_data['carrera'],
+                    cuatrimestre=validated_data['cuatrimestre'], grupo=validated_data['grupo'],
                 )
         except IntegrityError:
             raise serializers.ValidationError({'matricula': 'Esta matrícula ya está registrada.'})
