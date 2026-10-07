@@ -106,9 +106,10 @@ class RegisterApiTests(APITestCase):
     def test_register_creates_alumno_with_profile(self) -> None:
         from django.core import mail
 
-        response = self.client.post(
-            self.url, data={**self.payload, "is_staff": True, "is_superuser": True}, format="json"
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                self.url, data={**self.payload, "is_staff": True, "is_superuser": True}, format="json"
+            )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.data["data"]
         self.assertEqual(data["username"], "2230001")
@@ -173,7 +174,8 @@ class RegisterEmailTests(APITestCase):
 
     @override_settings(FRONTEND_URL="http://front.test")
     def test_register_email_has_matricula_and_no_password(self) -> None:
-        response = self.client.post(reverse("register"), data=self.payload, format="json")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse("register"), data=self.payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
@@ -188,11 +190,12 @@ class RegisterEmailTests(APITestCase):
     def test_admin_created_user_email_is_unchanged(self) -> None:
         admin = User.objects.create_superuser(username="admin", email="a@example.com", password="x")
         self.client.force_authenticate(user=admin)
-        self.client.post(
-            reverse("user-list"),
-            data={"username": "nuevo", "email": "nuevo@example.com", "password": "Temporal#123"},
-            format="json",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                reverse("user-list"),
+                data={"username": "nuevo", "email": "nuevo@example.com", "password": "Temporal#123"},
+                format="json",
+            )
         html = mail.outbox[0].alternatives[0][0]
         self.assertIn("Contraseña temporal", html)
         self.assertIn("Temporal#123", html)
@@ -210,7 +213,8 @@ class PasswordResetTests(APITestCase):
         self.confirm_url = reverse("password-reset-confirm")
 
     def request_reset(self, identificador):
-        response = self.client.post(self.url, data={"identificador": identificador}, format="json")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.url, data={"identificador": identificador}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"success": True, "data": {"detail": self.MESSAGE}})
         return response
@@ -387,3 +391,83 @@ class TokenRotationTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(self.refresh(token).status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class EmailFailureTests(APITestCase):
+    """Una falla del correo (SMTP caído, timeout) nunca convierte el alta o el registro en error."""
+
+    def setUp(self) -> None:
+        from users.models import Carrera
+
+        self.admin = User.objects.create_superuser(username="admin", email="a@example.com", password="x")
+        self.register_payload = {
+            "first_name": "Luis", "last_name": "Pérez", "matricula": "2230001",
+            "email": "luis@example.com", "password": "Segura#2026", "password_confirm": "Segura#2026",
+            "carrera": Carrera.objects.create(nombre="ISC").id, "cuatrimestre": 3, "grupo": 4,
+        }
+
+    def test_admin_create_user_survives_email_errors(self) -> None:
+        from unittest import mock
+
+        self.client.force_authenticate(user=self.admin)
+        for i, error in enumerate((OSError("conexión rechazada"), TimeoutError("timed out"))):
+            with mock.patch("users.views.enviar_correo_bienvenida", side_effect=error), \
+                    self.assertLogs("core.mail", level="ERROR"), \
+                    self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    reverse("user-list"),
+                    data={"username": f"nuevo{i}", "email": f"nuevo{i}@example.com", "password": "Temporal#123"},
+                    format="json",
+                )
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertTrue(User.objects.filter(username=f"nuevo{i}").exists())
+
+    def test_register_survives_email_errors(self) -> None:
+        from unittest import mock
+
+        for i, error in enumerate((OSError("conexión rechazada"), TimeoutError("timed out"))):
+            payload = {**self.register_payload, "matricula": f"223000{i}", "email": f"luis{i}@example.com"}
+            with mock.patch("users.views.enviar_correo_bienvenida", side_effect=error), \
+                    self.assertLogs("core.mail", level="ERROR"), \
+                    self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(reverse("register"), data=payload, format="json")
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertTrue(User.objects.filter(username=f"223000{i}").exists())
+
+    def test_smtp_connection_error_inside_send_is_contained(self) -> None:
+        """Error real del backend de correo (no solo SMTPException) durante el envío."""
+        from unittest import mock
+
+        self.client.force_authenticate(user=self.admin)
+        with mock.patch("django.core.mail.EmailMultiAlternatives.send", side_effect=ConnectionResetError()), \
+                self.assertLogs("core.mail", level="ERROR"), \
+                self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("user-list"),
+                data={"username": "otro", "email": "otro@example.com", "password": "Temporal#123"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class BackgroundMailTests(APITestCase):
+    def test_email_is_sent_in_a_thread_after_commit(self) -> None:
+        import threading
+        from unittest import mock
+        from django.test import override_settings
+        from core.mail import send_in_background
+
+        sent = threading.Event()
+        with override_settings(EMAIL_ASYNC=True), self.captureOnCommitCallbacks(execute=False) as callbacks:
+            send_in_background(lambda: sent.set())
+            self.assertFalse(sent.is_set())  # espera al commit
+        with override_settings(EMAIL_ASYNC=True):
+            with mock.patch("core.mail.close_old_connections"):
+                for callback in callbacks:
+                    callback()
+                self.assertTrue(sent.wait(timeout=5))
+
+    def test_email_timeout_setting(self) -> None:
+        from django.conf import settings
+
+        self.assertEqual(settings.EMAIL_TIMEOUT, 10)

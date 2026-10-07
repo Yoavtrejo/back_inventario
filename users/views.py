@@ -1,5 +1,3 @@
-import logging
-
 from django.db.models import ProtectedError, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
@@ -14,10 +12,9 @@ from core.permissions import IsSuperUser
 from .models import Carrera
 from .serializers import (UserSerializer, ProfileSerializer, RegisterSerializer, CarreraSerializer,
                           PasswordResetRequestSerializer, PasswordResetConfirmSerializer)
+from core.mail import send_in_background
 from .utils import enviar_correo_bienvenida, enviar_correo_recuperacion
 from academic.enrollment import enroll_student
-
-logger = logging.getLogger(__name__)
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = ProfileSerializer
@@ -35,7 +32,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         raw_password = self.request.data.get('password', None)
         user = serializer.save()
-        enviar_correo_bienvenida(user, raw_password)
+        # Una falla del correo nunca debe convertir el alta en error
+        send_in_background(enviar_correo_bienvenida, user, raw_password)
     
     # Añadimos los backends de filtrado
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -58,10 +56,7 @@ class RegisterView(WrappedStandardApiMixin, generics.CreateAPIView):
         # Inscripción automática en los grupos de su cohorte del cuatrimestre activo
         enroll_student(user)
         # Un fallo del correo no debe impedir el registro
-        try:
-            enviar_correo_bienvenida(user, origen='registro')
-        except Exception:
-            logger.exception('No se pudo enviar el correo de bienvenida a %s', user.email)
+        send_in_background(enviar_correo_bienvenida, user, origen='registro')
 
 
 class ReadOnlyPublicOrSuperUser(permissions.BasePermission):
@@ -112,11 +107,9 @@ class PasswordResetRequestView(WrappedStandardApiMixin, generics.GenericAPIView)
         users = get_user_model().objects.filter(
             Q(username__iexact=identificador) | Q(email__iexact=identificador), is_active=True
         ).exclude(email='')
+        # En segundo plano: la respuesta tarda lo mismo exista o no la cuenta
         for user in users:
-            try:
-                enviar_correo_recuperacion(user)
-            except Exception:
-                logger.exception('No se pudo enviar el correo de recuperación a %s', user.pk)
+            send_in_background(enviar_correo_recuperacion, user)
         return Response({'detail': 'Si la cuenta existe, enviamos un enlace de recuperación al correo registrado.'})
 
 

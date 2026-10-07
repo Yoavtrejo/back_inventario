@@ -212,6 +212,10 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f'SIDERED <{EMAIL_HOST_USER}>')
+# Segundos máximos de espera al servidor SMTP
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+# Los correos de las vistas se envían en un hilo aparte para no retrasar la respuesta
+EMAIL_ASYNC = os.getenv('EMAIL_ASYNC', 'True').lower() in ('1', 'true', 'yes')
 
 # Vigencia del enlace de recuperación de contraseña (segundos)
 PASSWORD_RESET_TIMEOUT = 3600

@@ -21,9 +21,13 @@ class TempMediaDiscoverRunner(DiscoverRunner):
         rates = api_settings.DEFAULT_THROTTLE_RATES
         self._original_rates = {scope: rates[scope] for scope in ('anon', 'user')}
         rates.update({'anon': '100000/minute', 'user': '100000/minute'})
+        # Los correos se envían en el mismo hilo para revisar mail.outbox
+        self._original_email_async = settings.EMAIL_ASYNC
+        settings.EMAIL_ASYNC = False
 
     def teardown_test_environment(self, **kwargs):
         settings.MEDIA_ROOT = self._original_media_root
         api_settings.DEFAULT_THROTTLE_RATES.update(self._original_rates)
+        settings.EMAIL_ASYNC = self._original_email_async
         shutil.rmtree(self._temp_media_root, ignore_errors=True)
         super().teardown_test_environment(**kwargs)

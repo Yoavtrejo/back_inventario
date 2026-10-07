@@ -13,6 +13,7 @@ from .serializers import (CalendarEventSerializer, TermSerializer, SubjectSerial
                           SubmissionGradeSerializer, SubmissionFileSerializer)
 from core.json_api_mixin import WrappedStandardApiMixin
 from core.permissions import IsSuperUserOrReadOnly
+from core.mail import send_in_background
 from .notifications import notify_submission_status_change
 from .enrollment import enroll_group_cohort, enroll_term
 
@@ -332,9 +333,7 @@ class SubmissionViewSet(WrappedStandardApiMixin, viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             submission = serializer.save()
             # Correo al alumno (o al equipo) si pasó a 'En revisión' o se calificó
-            transaction.on_commit(
-                lambda: notify_submission_status_change(submission, old_status, old_grade)
-            )
+            send_in_background(notify_submission_status_change, submission, old_status, old_grade)
         elif self._is_owner(user, instance):
             if 'grade' in request.data or 'status' in request.data:
                 raise PermissionDenied('Solo el docente del grupo puede calificar la entrega.')
